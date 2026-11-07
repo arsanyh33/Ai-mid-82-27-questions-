@@ -1,0 +1,2617 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black"/>
+<meta name="theme-color" content="#0d0b09"/>
+<script>
+/* Fit-to-screen helpers. --app-h = the REAL visible height (fixes 100vh bugs on phones / WebViews). */
+(function(){
+  function setH(){document.documentElement.style.setProperty('--app-h',window.innerHeight+'px');}
+  setH();
+  window.addEventListener('resize',setH);
+  window.addEventListener('orientationchange',function(){setTimeout(setH,200);});
+  if(window.visualViewport)window.visualViewport.addEventListener('resize',setH);
+  /* the app scrolls inside #main (not the page), so "scroll to top" must target it */
+  /* Themed replacement for window.confirm() — native dialogs are always black and ignore the theme.
+     qConfirm({icon,title,msg,yes,no,danger}) -> Promise<boolean> */
+  window.qConfirm=function(o){
+    o=o||{};
+    return new Promise(function(resolve){
+      function esc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+      var ov=document.createElement('div');ov.className='qm-overlay';ov.setAttribute('role','alertdialog');ov.setAttribute('aria-modal','true');
+      ov.innerHTML='<div class="qm-box'+(o.danger?' danger':'')+'" dir="auto"><div class="qm-icon">'+esc(o.icon||'❓')+'</div>'
+        +'<div class="qm-title">'+esc(o.title)+'</div><div class="qm-msg">'+esc(o.msg)+'</div>'
+        +'<div class="qm-btns"><button type="button" class="btn btn-g qm-no">'+esc(o.no||'إلغاء')+'</button>'
+        +'<button type="button" class="btn '+(o.danger?'btn-danger':'btn-p')+' qm-yes">'+esc(o.yes||'تمام')+'</button></div></div>';
+      function done(v){document.removeEventListener('keydown',onKey,true);if(ov.parentNode)ov.parentNode.removeChild(ov);resolve(v);}
+      function onKey(e){if(e.key==='Escape'){e.stopPropagation();e.preventDefault();done(false);}}
+      ov.addEventListener('click',function(e){if(e.target===ov)done(false);});
+      ov.querySelector('.qm-no').addEventListener('click',function(){done(false);});
+      ov.querySelector('.qm-yes').addEventListener('click',function(){done(true);});
+      document.addEventListener('keydown',onKey,true);
+      document.body.appendChild(ov);
+      ov.querySelector(o.danger?'.qm-no':'.qm-yes').focus();   // destructive dialogs default to Cancel
+    });
+  };
+  window.scrollMainTop=function(){
+    var m=document.getElementById('main');
+    try{if(m)m.scrollTo({top:0,behavior:'smooth'});}catch(e){if(m)m.scrollTop=0;}
+    try{window.scrollTo(0,0);}catch(e){}
+  };
+})();
+</script>
+<title>AI Midterm</title>
+<style>
+/* ══ DESIGN TOKENS — DARK (default): warm black · gold · crimson ══
+   RULE: never hardcode a colour below this block. Use the tokens.
+   *-rgb tokens exist so tints can be written as rgba(var(--accent-rgb),.1)
+   --accent  = gold (primary, interactive)      --accent2 = crimson (static labels/badges)
+   --accent3 = ember (bookmarks, retry, review) --green/--wrong = answer feedback only */
+:root{
+  --bg:#0d0b09;--sidebar:#110e0b;--card:#171310;--border:#2d251c;
+  --accent:#d4a537;--accent-rgb:212,165,55;--accent-hi:#ecc96a;--on-accent:#14100a;
+  --accent2:#b3202a;--accent2-rgb:179,32,42;--accent2-text:#ec6a73;--on-accent2:#ffffff;
+  --accent3:#e0894f;--accent3-rgb:224,137,79;--on-accent3:#14100a;
+  --green:#3ecf8e;--green-rgb:62,207,142;--on-green:#06140d;
+  --wrong:#ff5a5f;--wrong-rgb:255,90,95;--on-wrong:#14100a;
+  --text:#efe6d4;--muted:#968a76;--hint-bg:#120f0b;--code-bg:#0a0806;
+  --code-text:#ecd9a8;--hint-text:#cfc4ae;--opt-bg:rgba(255,236,200,.03);
+  --shadow:0 8px 32px rgba(212,165,55,.07);
+  --topbar-bg:#110e0b;--topbar-border:#2d251c;
+  --base-font-size:1rem;
+  /* theme transition speed — smooth but not sluggish */
+  --theme-speed:.45s;
+  --app-h:100vh;            /* overridden by JS with the real visible height */
+  color-scheme:dark;        /* native controls (select lists, scrollbars) match the theme */
+}
+@supports (height:100dvh){:root{--app-h:100dvh;}}
+/* ══ LIGHT THEME: warm white · bronze-gold · crimson ══ */
+[data-theme="light"]{
+  color-scheme:light;
+  --bg:#faf8f4;--sidebar:#f1ece2;--card:#ffffff;--border:#ddd3c0;
+  --accent:#9a6b00;--accent-rgb:154,107,0;--accent-hi:#b8821f;--on-accent:#ffffff;
+  --accent2:#a31621;--accent2-rgb:163,22,33;--accent2-text:#a31621;--on-accent2:#ffffff;
+  --accent3:#a8501a;--accent3-rgb:168,80,26;--on-accent3:#ffffff;
+  --green:#1e8a5a;--green-rgb:30,138,90;--on-green:#ffffff;
+  --wrong:#c4222b;--wrong-rgb:196,34,43;--on-wrong:#ffffff;
+  --text:#2a2118;--muted:#6f6350;--hint-bg:#f6f0e3;--code-bg:#f1ebdc;
+  --code-text:#6b4a0f;--hint-text:#4a3c28;--opt-bg:rgba(60,40,0,.025);
+  --shadow:0 8px 32px rgba(154,107,0,.10);
+  --topbar-bg:#f1ece2;--topbar-border:#ddd3c0;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{height:100%;overflow:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%;}
+/* Smooth colour transition on theme change — applied to everything */
+*,*::before,*::after{
+  transition:
+    background-color var(--theme-speed) ease,
+    border-color     var(--theme-speed) ease,
+    color            var(--theme-speed) ease,
+    box-shadow       var(--theme-speed) ease;
+}
+/* But keep interaction transitions snappy (override the long one) */
+.opt,.cb,.btn,.tb-icon-btn,.toggle-track,.ccard{
+  transition:
+    background-color var(--theme-speed) ease,
+    border-color var(--theme-speed) ease,
+    color var(--theme-speed) ease,
+    transform .18s ease,
+    box-shadow .2s ease !important;
+}
+body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);
+  display:flex;flex-direction:column;height:var(--app-h);overflow:hidden;overscroll-behavior:none;}
+/* ══ FONT SIZE SCALER ══
+   --base-font-size is set by the A+/A- buttons.
+   All question content scales relative to it.
+   The individual rules below use the variable instead of hardcoded rem. */
+
+/* ══ GLOBAL TOP BAR ══ */
+#top-bar{
+  position:relative;flex-shrink:0;z-index:9999;
+  background:var(--topbar-bg);border-bottom:1px solid var(--topbar-border);
+  display:flex;align-items:center;gap:6px;padding:7px 14px;
+  flex-wrap:nowrap;overflow-x:auto;min-height:50px;
+  box-shadow:0 2px 12px rgba(0,0,0,.25);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+}
+#top-bar::-webkit-scrollbar{height:3px;}
+#top-bar::-webkit-scrollbar-thumb{background:var(--border);}
+
+.tb-sep{width:1px;height:28px;background:var(--topbar-border);flex-shrink:0;margin:0 2px;}
+
+/* Toggle pill */
+.tb-toggle{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.tb-toggle label{font-size:.65rem;font-weight:700;color:var(--muted);white-space:nowrap;cursor:pointer;}
+.toggle-track{
+  position:relative;width:38px;height:20px;border-radius:10px;
+  background:var(--border);border:1px solid var(--topbar-border);
+  cursor:pointer;transition:background .25s;flex-shrink:0;
+}
+.toggle-track.on{background:var(--accent);}
+.toggle-track::after{
+  content:'';position:absolute;top:2px;left:2px;
+  width:14px;height:14px;border-radius:50%;background:#fff;
+  transition:left .22s;
+}
+.toggle-track.on::after{left:20px;}
+
+/* Font-size buttons */
+.tb-font-grp{display:flex;align-items:center;gap:3px;flex-shrink:0;}
+.tb-font-grp label{font-size:.65rem;font-weight:700;color:var(--muted);white-space:nowrap;}
+.tb-icon-btn{
+  background:var(--card);border:1px solid var(--topbar-border);
+  color:var(--text);border-radius:6px;padding:3px 8px;
+  font-size:.78rem;font-weight:800;cursor:pointer;line-height:1;
+  transition:border-color .18s,color .18s;flex-shrink:0;
+}
+.tb-icon-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+/* Exam mode submit button */
+#exam-submit-btn{
+  display:none;background:var(--accent);color:var(--on-accent);border:none;
+  border-radius:7px;padding:5px 13px;font-size:.75rem;font-weight:800;
+  cursor:pointer;white-space:nowrap;flex-shrink:0;
+  box-shadow:0 2px 10px rgba(var(--accent-rgb),.35);transition:opacity .2s;
+  animation:pulse-btn 2s infinite;
+}
+@keyframes pulse-btn{0%,100%{box-shadow:0 2px 10px rgba(var(--accent-rgb),.35);}50%{box-shadow:0 4px 18px rgba(var(--accent-rgb),.7);}}
+#exam-submit-btn.visible{display:inline-flex;align-items:center;gap:5px;}
+
+/* Exam mode indicator banner */
+#exam-mode-banner{
+  display:none;position:fixed;top:50px;left:0;right:0;z-index:9998;
+  background:rgba(var(--accent3-rgb),.12);border-bottom:1px solid rgba(var(--accent3-rgb),.35);
+  padding:5px 14px;text-align:center;font-size:.72rem;font-weight:700;color:var(--accent3);
+  letter-spacing:.04em;
+}
+#exam-mode-banner.visible{display:block;}
+
+/* ══ LAYOUT WRAPPER ══ */
+#layout{display:flex;flex:1;min-height:0;overflow:hidden;}
+
+/* ══ SIDEBAR ══ */
+#sb{width:275px;min-width:275px;background:var(--sidebar);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;align-self:stretch;flex-shrink:0;overflow-y:auto;
+  position:relative;z-index:100;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
+#sb-head{padding:18px 15px 12px;border-bottom:1px solid var(--border);}
+#sb-head h1{font-size:.95rem;font-weight:800;
+  background:linear-gradient(135deg,var(--accent-hi),var(--accent));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.4;}
+#sb-head p{font-size:.68rem;color:var(--muted);margin-top:2px;}
+.total-pill{display:inline-flex;align-items:center;gap:5px;margin-top:7px;
+  background:rgba(var(--accent-rgb),.08);border:1px solid rgba(var(--accent-rgb),.2);
+  border-radius:20px;padding:3px 10px;font-size:.7rem;color:var(--accent);font-weight:700;}
+[data-theme="light"] .total-pill{background:rgba(var(--accent-rgb),.08);border-color:rgba(var(--accent-rgb),.25);}
+.cb{display:flex;align-items:center;gap:8px;padding:10px 13px;cursor:pointer;
+  font-size:.78rem;font-weight:500;color:var(--muted);border:none;background:transparent;
+  text-align:left;width:100%;border-left:3px solid transparent;transition:all .2s;}
+.cb .ci{font-size:.95rem;width:18px;text-align:center;flex-shrink:0;}
+.cb .cl{flex:1;line-height:1.3;}
+.cb .cn{background:var(--border);border-radius:9px;padding:1px 7px;font-size:.65rem;color:var(--muted);}
+.cb:hover{background:rgba(var(--accent-rgb),.04);color:var(--text);border-left-color:rgba(var(--accent-rgb),.55);}
+.cb.active{background:rgba(var(--accent-rgb),.09);color:var(--accent);border-left-color:var(--accent);}
+.cb.active .cn{background:var(--accent);color:var(--on-accent);font-weight:800;}
+[data-theme="light"] .cb:hover{background:rgba(var(--accent-rgb),.06);}
+[data-theme="light"] .cb.active{background:rgba(var(--accent-rgb),.12);}
+#sb-foot{margin-top:auto;padding:10px 14px;border-top:1px solid var(--border);font-size:.66rem;color:var(--muted);text-align:center;}
+
+/* ══ MAIN ══ */
+#main{flex:1;min-width:0;min-height:0;overflow-y:auto;overflow-x:hidden;padding:26px 32px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
+.chapter-panel{display:none;}
+.chapter-panel.active{display:block;animation:fadeIn .3s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+
+/* ══ CHAPTER HEADER ══ */
+.ch-hdr{display:flex;align-items:center;gap:12px;margin-bottom:22px;padding-bottom:14px;border-bottom:1px solid var(--border);}
+.ch-ico{font-size:2rem;}
+.ch-ttl h2{font-size:1.35rem;font-weight:800;
+  background:linear-gradient(90deg,var(--accent-hi),var(--accent));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.ch-ttl p{font-size:.75rem;color:var(--muted);margin-top:2px;}
+.ch-stats{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:4px 11px;font-size:.7rem;color:var(--muted);}
+.stat b{color:var(--accent);}
+
+/* ══ TOOLBAR ══ */
+.tb{display:flex;gap:7px;margin-bottom:18px;flex-wrap:wrap;align-items:center;}
+.btn{padding:7px 15px;border-radius:6px;border:none;cursor:pointer;font-size:.76rem;font-weight:700;transition:all .2s;}
+.btn-p{background:var(--accent);color:var(--on-accent);}
+.btn-p:hover{background:var(--accent-hi);transform:translateY(-1px);}
+.btn-g{background:transparent;color:var(--muted);border:1px solid var(--border);}
+.btn-g:hover{border-color:var(--accent);color:var(--accent);}
+.btn-t{background:rgba(var(--accent2-rgb),.14);color:var(--accent2-text);border:1px solid rgba(var(--accent2-rgb),.35);}
+.btn-t:hover{background:var(--accent2);color:var(--on-accent2);}
+.btn-retry{background:rgba(var(--accent3-rgb),.12);color:var(--accent3);border:1px solid rgba(var(--accent3-rgb),.3);}
+.btn-retry:hover{background:var(--accent3);color:var(--on-accent3);}
+.filter-sep{width:1px;height:24px;background:var(--border);margin:0 3px;}
+
+/* ══ QUESTION CARD ══ */
+.qc{background:var(--card);border:1px solid var(--border);border-radius:10px;
+  padding:18px 20px;margin-bottom:14px;transition:border-color .2s,box-shadow .2s;position:relative;overflow:hidden;}
+.qc::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+  transform:scaleX(0);transform-origin:left;transition:transform .28s;}
+.qc:hover{border-color:rgba(var(--accent-rgb),.4);box-shadow:var(--shadow);}
+.qc:hover::before{transform:scaleX(1);}
+.qc.trace-card{border-color:rgba(var(--green-rgb),.15);}
+.qc.trace-card::before{background:linear-gradient(90deg,var(--green),var(--accent));}
+.qc.trace-card:hover{border-color:rgba(var(--green-rgb),.4);}
+
+/* Bookmarked card highlight */
+.qc.bookmarked{border-color:rgba(var(--accent3-rgb),.6)!important;}
+.qc.bookmarked::before{background:linear-gradient(90deg,var(--accent3),var(--accent-hi))!important;transform:scaleX(1)!important;}
+
+/* meta row */
+.qm{display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap;}
+.qn{background:var(--accent2);color:var(--on-accent2);border-radius:5px;padding:1px 8px;font-size:.68rem;font-weight:800;}
+.qd{font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:9px;}
+.qd.easy{background:rgba(var(--green-rgb),.12);color:var(--green);border:1px solid rgba(var(--green-rgb),.25);}
+.qd.medium{background:rgba(var(--accent-rgb),.12);color:var(--accent);border:1px solid rgba(var(--accent-rgb),.3);}
+.qd.hard{background:rgba(var(--wrong-rgb),.12);color:var(--wrong);border:1px solid rgba(var(--wrong-rgb),.28);}
+.qt{font-size:.67rem;color:var(--muted);}
+.qt.trace{color:var(--green);font-weight:700;}
+.qt.trace::before{content:'🔍 ';}
+
+/* Bookmark button inside card */
+.bm-btn{
+  margin-left:auto;background:transparent;border:1px solid var(--border);
+  border-radius:5px;padding:2px 7px;font-size:.75rem;cursor:pointer;
+  color:var(--muted);transition:all .18s;flex-shrink:0;
+}
+.bm-btn:hover{border-color:var(--accent3);color:var(--accent3);}
+.bm-btn.bm-active{border-color:var(--accent3);color:var(--accent3);background:rgba(var(--accent3-rgb),.12);}
+
+/* question body */
+/* Question text — scales with --base-font-size */
+.qtxt{font-size:var(--base-font-size);line-height:1.75;margin-bottom:11px;}
+pre.qcode{background:var(--code-bg);border:1px solid var(--border);border-radius:7px;
+  padding:11px 13px;font-size:calc(var(--base-font-size) * 0.88);
+  font-family:'Courier New',monospace;color:var(--code-text);
+  overflow-x:auto;margin:7px 0 11px;line-height:1.6;white-space:pre-wrap;}
+.opts{display:grid;gap:6px;margin-bottom:11px;}
+.opt{display:flex;align-items:flex-start;gap:8px;background:var(--opt-bg);
+  border:1px solid var(--border);border-radius:7px;padding:8px 12px;
+  font-size:calc(var(--base-font-size) * 0.94);}
+.opt:hover{background:rgba(var(--accent-rgb),.05);border-color:var(--accent);}
+.ol{background:var(--border);color:var(--muted);border-radius:4px;padding:1px 7px;
+  font-size:.7rem;font-weight:800;flex-shrink:0;margin-top:1px;}
+
+/* answer */
+.asec{max-height:0;overflow:hidden;
+  transition:max-height .4s cubic-bezier(.4,0,.2,1),opacity .3s !important;opacity:0;}
+.asec.open{max-height:600px;opacity:1;}
+.abox{background:var(--hint-bg);border:1px solid rgba(var(--green-rgb),.3);border-radius:7px;
+  padding:12px 14px;margin-top:5px;}
+.albl{font-size:.7rem;font-weight:800;color:var(--green);letter-spacing:.05em;
+  text-transform:uppercase;margin-bottom:4px;}
+.acor{font-size:calc(var(--base-font-size) * 0.95);font-weight:700;color:var(--green);margin-bottom:6px;}
+.ahint{font-size:calc(var(--base-font-size) * 0.88);color:var(--hint-text);line-height:1.7;}
+.tbtn{display:inline-flex;align-items:center;gap:6px;padding:6px 13px;border-radius:6px;
+  border:1px solid var(--accent);background:transparent;color:var(--accent);
+  font-size:.76rem;font-weight:700;cursor:pointer;transition:all .2s;}
+.tbtn:hover{background:var(--accent);color:var(--on-accent);}
+.tbtn .arr{transition:transform .3s;}
+.tbtn.open .arr{transform:rotate(180deg);}
+
+/* ══ Exam mode — hide hints toggle ══ */
+body.exam-mode .asec{display:none!important;}
+body.exam-mode .tbtn{display:none!important;}
+body.exam-mode .qc[data-answered] .asec{display:none!important;}
+
+/* Pending answers in exam mode (show selection without locking) */
+body.exam-mode .opt.exam-pending{
+  background:rgba(var(--accent-rgb),.12)!important;
+  border-color:var(--accent)!important;
+}
+body.exam-mode .opt.exam-pending .ol{background:var(--accent)!important;color:var(--on-accent)!important;}
+
+/* Reveal all after submit */
+body.exam-revealed .asec{display:block!important;max-height:600px!important;opacity:1!important;}
+body.exam-revealed .tbtn{display:inline-flex!important;}
+
+/* ══ SECTION DIVIDER ══ */
+.sec-div{display:flex;align-items:center;gap:10px;margin:24px 0 16px;}
+.sec-div span{font-size:.8rem;font-weight:800;padding:4px 14px;border-radius:20px;white-space:nowrap;}
+.sec-div span.mcq{background:rgba(var(--accent2-rgb),.15);color:var(--accent2-text);border:1px solid rgba(var(--accent2-rgb),.3);}
+.sec-div span.trace{background:rgba(var(--green-rgb),.12);color:var(--green);border:1px solid rgba(var(--green-rgb),.25);}
+.sec-div::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* ══ WELCOME ══ */
+#welcome{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:calc(var(--app-h) - 110px);text-align:center;gap:14px;}
+#welcome .wi{font-size:3.2rem;}
+#welcome h2{font-size:1.8rem;font-weight:800;
+  background:linear-gradient(135deg,var(--accent-hi),var(--accent),var(--accent3));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+#welcome p{max-width:520px;color:var(--muted);line-height:1.7;font-size:.88rem;}
+/* author credit — shown once, bottom of the home screen */
+#welcome .credit{margin-top:22px;padding-bottom:6px;font-size:.72rem;letter-spacing:.04em;color:var(--muted);opacity:.9;}
+#welcome .credit b{color:var(--accent);font-weight:800;letter-spacing:.06em;}
+.cgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));
+  gap:9px;max-width:820px;width:100%;margin-top:5px;}
+.ccard{background:var(--card);border:1px solid var(--border);border-radius:9px;
+  padding:13px;cursor:pointer;transition:all .2s;text-align:left;}
+.ccard:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow);}
+.ccard .cci{font-size:1.4rem;margin-bottom:5px;}
+.ccard h3{font-size:.8rem;font-weight:700;margin-bottom:2px;}
+.ccard p{font-size:.68rem;color:var(--muted);}
+.ccard .cq{font-size:.67rem;color:var(--accent);font-weight:700;margin-top:4px;}
+.ccard .cqt{font-size:.65rem;color:var(--green);font-weight:700;}
+
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+::-webkit-scrollbar-thumb:hover{background:var(--accent);}
+
+/* ══ LECTURE SUMMARY ══ */
+.lec-summary{margin-bottom:14px;}
+.lec-sum-box{background:var(--card);border:1px solid rgba(var(--accent-rgb),.2);border-radius:12px;padding:22px 24px;margin-bottom:12px;}
+.lec-sum-title{font-size:1.05rem;font-weight:800;margin-bottom:18px;background:linear-gradient(90deg,var(--accent-hi),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.lec-sum-section{margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border);}
+.lec-sum-section:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0;}
+.lec-sum-section h4{font-size:.82rem;font-weight:800;color:var(--accent);margin-bottom:9px;text-transform:uppercase;letter-spacing:.04em;}
+.lec-sum-section ul{list-style:none;padding:0;}
+.lec-sum-section ul li{font-size:.83rem;color:var(--text);line-height:1.75;padding:2px 0 2px 14px;position:relative;}
+.lec-sum-section ul li::before{content:'▸';position:absolute;left:0;color:var(--accent);font-size:.75rem;}
+.lec-sum-section ul li strong{color:var(--accent-hi);}
+.lec-sum-section ul li code{background:var(--code-bg);color:var(--code-text);border-radius:4px;padding:1px 5px;font-size:.78rem;}
+.lec-sum-section p{font-size:.83rem;color:var(--text);line-height:1.75;}
+.lec-code{background:var(--code-bg);border:1px solid var(--border);border-radius:7px;padding:11px 13px;font-size:.77rem;font-family:'Courier New',monospace;color:var(--code-text);overflow-x:auto;margin:7px 0;line-height:1.65;white-space:pre-wrap;}
+
+/* Timer FAB adjusted */
+#exam-timer-fab{position:fixed;bottom:24px;right:20px;width:46px;height:46px;
+  border-radius:50%;background:var(--accent2);color:var(--on-accent2);border:none;font-size:1.2rem;
+  cursor:pointer;z-index:9989;box-shadow:0 4px 16px rgba(var(--accent2-rgb),.4);
+  display:flex;align-items:center;justify-content:center;}
+
+@media(max-width:768px){
+  #sb{width:50px;min-width:50px;}
+  #sb-head,#sb-foot,.cb .cl,.cb .cn{display:none;}
+  .cb{justify-content:center;padding:12px;}
+  #main{padding:14px 10px;}
+  #top-bar{gap:4px;padding:6px 8px;}
+  /* labels stay visible on phones: icon + name above each switch */
+  .tb-toggle{display:grid;grid-template-columns:auto auto;justify-content:center;align-items:center;column-gap:3px;row-gap:3px;}
+  .tb-toggle label{display:block;line-height:1;}
+  .tb-toggle label:first-child{grid-row:1;grid-column:1;justify-self:end;font-size:.8rem;}
+  .tb-toggle label:last-child{grid-row:1;grid-column:2;justify-self:start;font-size:.64rem!important;opacity:1!important;color:var(--text);}
+  .tb-toggle .toggle-track{grid-row:2;grid-column:1/3;justify-self:center;}
+  .tb-font-grp label{display:block;}
+}
+
+/* ══ DEVICE PREVIEW STAGE ══ */
+#device-stage{display:flex;justify-content:center;flex:1;min-height:0;width:100%;}
+#app-frame{width:100%;height:100%;display:flex;flex-direction:column;min-height:0;}
+
+#device-select{
+  background:var(--card);color:var(--text);border:1px solid var(--border);
+  border-radius:6px;padding:5px 9px;font-size:.7rem;font-weight:700;cursor:pointer;
+  outline:none;flex-shrink:0;
+}
+#device-select:hover{border-color:var(--accent);}
+
+body.device-mobile #device-stage,
+body.device-tablet #device-stage,
+body.device-laptop #device-stage{
+  background:var(--bg);padding:24px 0;align-items:center;
+}
+body.device-mobile #app-frame{
+  max-width:390px;border:1px solid var(--border);border-radius:22px;
+  box-shadow:0 20px 60px rgba(0,0,0,.5);overflow:hidden;max-height:844px;transform:translateZ(0);
+}
+body.device-tablet #app-frame{
+  max-width:768px;border:1px solid var(--border);border-radius:16px;
+  box-shadow:0 20px 60px rgba(0,0,0,.5);overflow:hidden;max-height:1024px;transform:translateZ(0);
+}
+body.device-laptop #app-frame{
+  max-width:1280px;border:1px solid var(--border);border-radius:10px;
+  box-shadow:0 20px 60px rgba(0,0,0,.5);overflow:hidden;max-height:800px;transform:translateZ(0);
+}
+
+/* Reflow top bar + sidebar when device-mobile is active (works regardless of real viewport) */
+body.device-mobile #top-bar h1,
+body.device-mobile .tb-sep{display:none;}
+body.device-mobile #top-bar{gap:4px;padding:6px 8px;}
+body.device-mobile .tb-toggle{display:grid;grid-template-columns:auto auto;justify-content:center;align-items:center;column-gap:3px;row-gap:3px;}
+body.device-mobile .tb-toggle label{display:block;line-height:1;}
+body.device-mobile .tb-toggle label:first-child{grid-row:1;grid-column:1;justify-self:end;font-size:.8rem;}
+body.device-mobile .tb-toggle label:last-child{grid-row:1;grid-column:2;justify-self:start;font-size:.64rem!important;opacity:1!important;color:var(--text);}
+body.device-mobile .tb-toggle .toggle-track{grid-row:2;grid-column:1/3;justify-self:center;}
+body.device-mobile .tb-font-grp label{display:block;}
+body.device-mobile #mob-menu{display:flex!important;}
+body.device-mobile #sb{
+  position:fixed;top:0;left:0;height:100%;z-index:10000;
+  transform:translateX(-100%);transition:transform .25s ease;width:240px;min-width:240px;
+}
+body.device-mobile #sb.open{transform:translateX(0);}
+body.device-mobile #sb-head,body.device-mobile #sb-foot,
+body.device-mobile .cb .cl,body.device-mobile .cb .cn{display:flex;}
+body.device-mobile .cl{display:inline!important;}
+body.device-mobile .cn{display:inline-block!important;}
+body.device-mobile #main{padding:14px 12px;}
+body.device-mobile .ch-stats{flex-basis:100%;margin-left:0;margin-top:8px;}
+body.device-mobile .cgrid{grid-template-columns:1fr;}
+
+/* ══ MOBILE HAMBURGER + OVERLAY ══ */
+#mob-menu{
+  display:none;align-items:center;justify-content:center;
+  width:30px;height:30px;border-radius:6px;border:1px solid var(--border);
+  background:var(--card);color:var(--text);font-size:1rem;cursor:pointer;flex-shrink:0;
+}
+#mob-menu:hover{border-color:var(--accent);}
+#sb-overlay{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;
+}
+#sb-overlay.open{display:block;}
+
+@media(max-width:640px){
+  #mob-menu{display:flex;}
+  #top-bar h1,.tb-sep{display:none;}
+  #sb{position:fixed;top:0;left:0;height:100%;z-index:10000;transform:translateX(-100%);
+      transition:transform .25s ease;width:260px;min-width:260px;}
+  #sb.open{transform:translateX(0);}
+  #sb-head,#sb-foot{display:block!important;}
+  .cb .cl,.cb .cn{display:inline-block!important;}
+  .cb{justify-content:flex-start;padding:10px 13px;}
+  #main{padding:14px 12px;}
+  .ch-stats{flex-basis:100%;margin-left:0;margin-top:8px;}
+  .cgrid{grid-template-columns:1fr;}
+}
+
+</style>
+<style id="guide-css">
+/* ══ CHAPTER TABS + STUDY GUIDE (tokens only) ══ */
+.ch-tabs{display:flex;gap:8px;margin:0 0 18px;}
+.ch-tab{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--muted);font-size:.84rem;font-weight:800;cursor:pointer;font-family:inherit;line-height:1.3;}
+.ch-tab:hover{border-color:var(--accent);color:var(--accent);}
+.ch-tab.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent);}
+.ch-tab small{font-weight:600;opacity:.85;font-size:.68rem;}
+.chapter-panel[data-tab="guide"] .ch-pane-q{display:none;}
+.chapter-panel[data-tab="q"] .ch-pane-g{display:none;}
+body.exam-mode:not(.exam-revealed) .ch-pane-g{display:none!important;}
+body.exam-mode:not(.exam-revealed) .chapter-panel .ch-pane-q{display:block!important;}
+body.exam-mode:not(.exam-revealed) .ch-tab[data-tab="guide"]{opacity:.45;pointer-events:none;}
+body.exam-mode:not(.exam-revealed) .ch-tab[data-tab="guide"]::after{content:"🔒";}
+body.exam-mode:not(.exam-revealed) .ch-tab[data-tab="q"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent);}
+.gq-flash{animation:gqflash 1.7s ease;}
+@keyframes gqflash{0%,60%{box-shadow:0 0 0 3px rgba(var(--accent-rgb),.55);}100%{box-shadow:0 0 0 0 rgba(var(--accent-rgb),0);}}
+
+.gd{direction:rtl;line-height:1.75;font-size:.9rem;color:var(--text);}
+.gd-nav{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:20px;}
+.gd-nav button{padding:6px 13px;border-radius:16px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:.76rem;font-weight:700;cursor:pointer;font-family:inherit;}
+.gd-nav button:hover{border-color:var(--accent);color:var(--accent);}
+.gd-intro{font-size:.84rem;color:var(--hint-text);margin-bottom:16px;}
+.gd-sec{margin-bottom:30px;scroll-margin-top:6px;}
+.gd-h{display:flex;align-items:center;gap:8px;font-size:1.05rem;font-weight:800;margin-bottom:3px;}
+.gd-sub{font-size:.74rem;color:var(--muted);margin-bottom:12px;}
+.gd-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 15px;margin-bottom:10px;}
+.gd-ct{font-weight:800;font-size:.95rem;margin-bottom:6px;}
+.gd-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;}
+.gd-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:12px;font-size:.68rem;font-weight:800;background:rgba(var(--accent-rgb),.12);color:var(--accent);border:1px solid rgba(var(--accent-rgb),.3);direction:ltr;font-family:inherit;}
+button.gd-chip{cursor:pointer;}
+button.gd-chip:hover{background:var(--accent);color:var(--on-accent);}
+.gd-back{display:inline-flex;align-items:center;gap:5px;float:inline-end;margin-inline-start:auto;padding:3px 12px;border-radius:14px;border:1px solid var(--accent);background:var(--accent);color:var(--on-accent);font:inherit;font-size:.72rem;font-weight:800;cursor:pointer;line-height:1.5;white-space:nowrap;box-shadow:0 2px 8px rgba(var(--accent-rgb),.3);}
+.gd-back:hover{filter:brightness(1.08);}
+.gd-pr .gd-back{align-self:center;float:none;}
+
+.gd-pr{display:flex;gap:11px;align-items:flex-start;background:var(--card);border:1px solid var(--border);border-inline-start:4px solid var(--accent);border-radius:12px;padding:11px 14px;margin-bottom:9px;}
+.gd-pr.hot{border-inline-start-color:var(--accent2);}
+.gd-pr .ic{font-size:1.3rem;line-height:1.4;}
+.gd-pr .bd{flex:1;min-width:0;}
+.gd-pr .tt{font-weight:800;}
+.gd-pr .nt{font-size:.78rem;color:var(--muted);margin-top:2px;}
+.gd-pr .gd-chips{margin-top:6px;}
+
+.gd-row{display:flex;gap:9px;align-items:flex-start;margin:7px 0;}
+.gd-lbl{flex-shrink:0;padding:1px 10px;border-radius:10px;font-size:.7rem;font-weight:800;margin-top:2px;}
+.gd-lbl.bad{background:rgba(var(--wrong-rgb),.14);color:var(--wrong);border:1px solid rgba(var(--wrong-rgb),.35);}
+.gd-lbl.ok{background:rgba(var(--green-rgb),.14);color:var(--green);border:1px solid rgba(var(--green-rgb),.35);}
+.gd-trap{border-inline-start:4px solid var(--wrong);}
+
+.gd-tw{overflow-x:auto;border:1px solid var(--border);border-radius:10px;margin:8px 0;background:var(--card);}
+.gd-tbl{width:100%;border-collapse:collapse;font-size:.84rem;}
+.gd-tbl th{background:var(--hint-bg);color:var(--accent);text-align:start;padding:8px 11px;font-size:.74rem;font-weight:800;white-space:nowrap;}
+.gd-tbl td{padding:8px 11px;border-top:1px solid var(--border);vertical-align:top;}
+.gd-tbl tr.hi td{background:rgba(var(--accent-rgb),.07);}
+.gd-tbl td.k{font-weight:700;}
+
+.gd-mem{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px;}
+.gd-mem .gd-card{margin-bottom:0;}
+.gd-mi{font-size:1.5rem;line-height:1.2;margin-bottom:4px;}
+
+.gd-cap{font-size:.72rem;color:var(--muted);margin:3px 0 6px;}
+.gd-flow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;direction:ltr;margin:8px 0;}
+.gd-step{padding:7px 12px;border:1px solid var(--border);border-radius:9px;background:var(--hint-bg);font-size:.82rem;font-weight:700;}
+.gd-step.hi{background:rgba(var(--accent-rgb),.16);border-color:var(--accent);color:var(--accent);}
+.gd-arw{color:var(--accent);font-weight:900;}
+.gd-arr{display:flex;gap:5px;direction:ltr;margin:8px 0;flex-wrap:wrap;}
+.gd-ac{display:flex;flex-direction:column;align-items:center;gap:3px;}
+.gd-cell{min-width:40px;height:40px;padding:0 6px;display:grid;place-items:center;border:1.5px solid var(--border);border-radius:7px;background:var(--hint-bg);font-family:'Courier New',monospace;font-weight:800;}
+.gd-cell.hi{background:rgba(var(--accent-rgb),.2);border-color:var(--accent);color:var(--accent);}
+.gd-pt{font-size:.66rem;color:var(--accent3);font-weight:800;min-height:1.1em;white-space:nowrap;}
+.gd-vs{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:stretch;direction:ltr;margin:8px 0;}
+.gd-vsc{background:var(--hint-bg);border:1px solid var(--border);border-radius:10px;padding:10px 12px;}
+.gd-vsc h5{font-size:.88rem;font-weight:800;color:var(--accent);margin-bottom:5px;}
+.gd-vsc ul{padding-inline-start:18px;font-size:.82rem;}
+.gd-vsb{align-self:center;font-weight:900;font-size:.68rem;color:var(--on-accent2);background:var(--accent2);border-radius:50%;width:30px;height:30px;display:grid;place-items:center;}
+.gd-call{display:flex;gap:9px;padding:10px 13px;border-radius:10px;background:rgba(var(--accent3-rgb),.09);border:1px solid rgba(var(--accent3-rgb),.3);margin:8px 0;font-size:.85rem;}
+.gd-steps{list-style:none;margin:8px 0;counter-reset:gs;}
+.gd-steps li{counter-increment:gs;display:flex;gap:9px;align-items:flex-start;margin:5px 0;font-size:.85rem;}
+.gd-steps li::before{content:counter(gs);flex-shrink:0;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-size:.72rem;font-weight:900;display:grid;place-items:center;margin-top:2px;}
+.gd-svg{overflow-x:auto;margin:8px 0;text-align:center;direction:ltr;}
+.gd-svg svg{max-width:100%;height:auto;}
+.gs-box{fill:var(--card);stroke:var(--accent);stroke-width:1.5;}
+.gs-hi{fill:rgba(var(--accent-rgb),.22);stroke:var(--accent);stroke-width:1.5;}
+.gs-bad{fill:rgba(var(--wrong-rgb),.14);stroke:var(--wrong);stroke-width:1.5;}
+.gs-ok{fill:rgba(var(--green-rgb),.14);stroke:var(--green);stroke-width:1.5;}
+.gs-line{stroke:var(--muted);stroke-width:1.5;fill:none;}
+.gs-arrow{stroke:var(--accent);stroke-width:1.8;fill:none;marker-end:url(#gs-ah);}
+.gs-text{fill:var(--text);font-size:13px;font-family:inherit;}
+.gs-sub{fill:var(--muted);font-size:11px;font-family:inherit;}
+#gs-ah path{fill:var(--accent);}
+/* 📖 explain cards (full explanation of every point) */
+.gd-ex .gd-ct{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.gd-hotb{font-size:.68rem;font-weight:800;padding:1px 9px;border-radius:10px;background:rgba(var(--accent2-rgb),.14);color:var(--accent2-text);border:1px solid rgba(var(--accent2-rgb),.35);}
+.gd-xt{margin:2px 0 6px;}
+.gd-pts{list-style:none;margin:6px 0 2px;padding:0;counter-reset:gp;}
+.gd-pts li{padding:7px 0;border-top:1px dashed var(--border);display:flex;gap:9px;align-items:flex-start;flex-wrap:wrap;}
+.gd-pts li:first-child{border-top:none;}
+.gd-pts.ord li{counter-increment:gp;}
+.gd-pts.ord li::before{content:counter(gp);flex-shrink:0;width:21px;height:21px;border-radius:50%;background:rgba(var(--accent-rgb),.16);color:var(--accent);font-size:.7rem;font-weight:900;display:grid;place-items:center;margin-top:2px;}
+.gd-pts:not(.ord) li::before{content:"";flex-shrink:0;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-top:11px;}
+.gd-k{display:inline-block;padding:0 9px;border-radius:7px;background:rgba(var(--accent-rgb),.12);color:var(--accent);font-weight:800;font-size:.84rem;direction:ltr;}
+.gd-pts .gd-d{flex:1;min-width:60%;}
+
+.ahint-g{margin-top:9px;padding-top:8px;border-top:1px dashed var(--border);font-size:.78rem;line-height:2;display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+.ahint-g .gd-chip{max-width:100%;text-align:start;}
+@media (max-width:640px){
+  .gd-vs{grid-template-columns:1fr;} .gd-vsb{margin:0 auto;}
+  .ch-tab{font-size:.76rem;padding:10px 6px;} .ch-tab small{display:none;}
+}
+</style>
+<script id="guide-js">
+/* Chapter tabs (📘 study guide / 📝 questions). Choice is remembered per chapter in gs().tabs. */
+function chTab(chId,which,opt){
+  opt=opt||{};
+  var p=document.getElementById(chId);if(!p||!p.querySelector('.ch-tabs'))return false;
+  if(which==='q'&&typeof gdBackClear==='function')gdBackClear();   /* the "back to my question" button lives only while the student is reading the linked explanation */
+  p.setAttribute('data-tab',which);
+  p.querySelectorAll('.ch-tab').forEach(function(b){var on=b.getAttribute('data-tab')===which;b.classList.toggle('on',on);b.setAttribute('aria-selected',on?'true':'false');});
+  if(!opt.nosave){try{var s=gs();s.tabs=s.tabs||{};s.tabs[chId]=which;ss(s);}catch(e){}}
+  if(!opt.noscroll&&typeof scrollMainTop==='function')scrollMainTop();
+  return true;
+}
+function chTabInit(chId){
+  var p=document.getElementById(chId);if(!p||!p.querySelector('.ch-tabs'))return;
+  var w='q';try{var t=(gs().tabs||{})[chId];if(t==='guide')w='guide';}catch(e){}
+  chTab(chId,w,{nosave:true,noscroll:true});
+}
+function gotoQ(chId,n){
+  chTab(chId,'q',{noscroll:true});
+  var c=document.getElementById(chId+'_'+n);if(!c)return;
+  try{c.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){c.scrollIntoView();}
+  c.classList.remove('gq-flash');void c.offsetWidth;c.classList.add('gq-flash');
+  setTimeout(function(){c.classList.remove('gq-flash');},1800);
+}
+
+/* "راجع في المذاكرة" — wrong answers link to the guide items (⚠️ trap / 🎯 clue / 🧠 memory / 🔥 priority) built from that question */
+var _GSEC={explain:0,traps:1,clues:2,memory:3,priority:4};
+function _gx(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function guideLinksRow(chId,n,from){
+  var pane=document.getElementById(chId+'-gpane');if(!pane)return '';
+  var items=[];
+  pane.querySelectorAll('[data-q]').forEach(function(el){
+    if((el.getAttribute('data-q')||'').split(',').indexOf(String(n))<0)return;
+    items.push({id:el.id,ic:el.getAttribute('data-ic')||'📘',t:el.getAttribute('data-t')||'',o:_GSEC[el.getAttribute('data-sec')]});
+  });
+  if(!items.length)return '';
+  items.sort(function(a,b){return a.o-b.o;});
+  return '<div class="ahint-g" dir="rtl"><b>📘 راجع في المذاكرة:</b> '+items.slice(0,3).map(function(x){
+    return '<button class="gd-chip" onclick="openGuideItem(\''+chId+'\',\''+x.id+'\','+n+',\''+(from||'')+'\')">'+x.ic+' '+_gx(x.t.length>38?x.t.slice(0,38)+'…':x.t)+'</button>';}).join(' ')+'</div>';
+}
+var _gret=null;
+function gdBackClear(){document.querySelectorAll('.gd-back').forEach(function(b){b.remove();});_gret=null;}
+function gdBack(){
+  var r=_gret;gdBackClear();if(!r)return;
+  var m=document.getElementById('main');
+  if(r.from==='rb'){
+    if(typeof show==='function')show('reviewBank');
+    setTimeout(function(){if(m&&r.top!=null)m.scrollTop=r.top;},60);return;
+  }
+  var p=document.getElementById(r.ch);
+  if((!p||!p.classList.contains('active'))&&typeof show==='function')show(r.ch);
+  chTab(r.ch,'q',{noscroll:true});
+  setTimeout(function(){
+    var c=document.getElementById(r.ch+'_'+r.n);
+    if(m&&r.top!=null)m.scrollTop=r.top;          /* exactly where the student stopped */
+    else if(c){try{c.scrollIntoView({block:'center'});}catch(e){}}
+    if(c){c.classList.remove('gq-flash');void c.offsetWidth;c.classList.add('gq-flash');setTimeout(function(){c.classList.remove('gq-flash');},1800);}
+  },60);
+}
+function _gdAddBack(el,r){
+  var btn=document.createElement('button');btn.type='button';btn.className='gd-back';
+  btn.textContent=r.from==='rb'?'↩ ارجع للـ Review Bank':'↩ ارجع لسؤالك (Q'+r.n+')';
+  btn.onclick=gdBack;
+  var host=el.querySelector('.gd-ct')||(el.tagName==='TR'?el.lastElementChild:null)||el;   /* inside the SAME card, next to its title */
+  host.appendChild(btn);
+}
+function openGuideItem(chId,id,n,from){
+  var m=document.getElementById('main'),top=m?m.scrollTop:null;
+  var p=document.getElementById(chId);
+  if((!p||!p.classList.contains('active'))&&typeof show==='function')show(chId);
+  gdBackClear();
+  chTab(chId,'guide',{noscroll:true});
+  var el=document.getElementById(id);if(!el)return;
+  if(n!=null&&n!==''){_gret={ch:chId,n:n,from:from||'',top:top};_gdAddBack(el,_gret);}
+  setTimeout(function(){
+    try{el.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){el.scrollIntoView();}
+    el.classList.remove('gq-flash');void el.offsetWidth;el.classList.add('gq-flash');
+    setTimeout(function(){el.classList.remove('gq-flash');},1800);
+  },80);
+}
+function gjump(chId,sec){
+  var el=document.getElementById(chId+'-g-'+sec);if(!el)return;
+  try{el.scrollIntoView({behavior:'smooth',block:'start'});}catch(e){el.scrollIntoView();}
+}
+</script>
+</head>
+<body>
+
+<div id="device-stage">
+<div id="app-frame">
+
+<!-- ══════════════════════════════════════════════════
+     GLOBAL TOP BAR — Sticky, independent of chapters
+══════════════════════════════════════════════════ -->
+<div id="top-bar">
+
+  <!-- MOBILE HAMBURGER -->
+  <button id="mob-menu" onclick="MobileNav.toggle()" title="Menu">☰</button>
+
+  <!-- 1. THEME TOGGLE -->
+  <div class="tb-toggle">
+    <label for="theme-toggle" title="Dark / Light Mode">🌙</label>
+    <div class="toggle-track" id="theme-toggle" role="switch" aria-checked="false" tabindex="0"
+         onclick="TopBar.toggleTheme()" onkeydown="if(event.key==='Enter'||event.key===' ')TopBar.toggleTheme()"></div>
+    <label for="theme-toggle" style="font-size:.62rem;opacity:.7;">Light</label>
+  </div>
+
+  <div class="tb-sep"></div>
+
+  <!-- 2. FONT SIZE CONTROLLER -->
+  <div class="tb-font-grp">
+    <label>Font:</label>
+    <button class="tb-icon-btn" onclick="TopBar.fontSize(-1)" title="Decrease font size">A−</button>
+    <button class="tb-icon-btn" onclick="TopBar.fontSize(0)"  title="Reset font size">A</button>
+    <button class="tb-icon-btn" onclick="TopBar.fontSize(+1)" title="Increase font size">A+</button>
+  </div>
+
+  <div class="tb-sep"></div>
+
+  <!-- 3. EXAM / PRACTICE MODE TOGGLE -->
+  <div class="tb-toggle">
+    <label title="Practice = instant feedback. Exam = hidden until Submit.">📝</label>
+    <div class="toggle-track" id="mode-toggle" role="switch" aria-checked="false" tabindex="0"
+         onclick="TopBar.toggleMode()" onkeydown="if(event.key==='Enter'||event.key===' ')TopBar.toggleMode()"></div>
+    <label style="font-size:.62rem;opacity:.7;">Exam</label>
+  </div>
+
+  <!-- Exam Submit button — only visible in exam mode -->
+  <button id="exam-submit-btn" onclick="TopBar.submitExam()" title="Reveal all answers and scores">
+    🎯 Submit Exam
+  </button>
+
+  <div class="tb-sep"></div>
+
+  <!-- 4. SHUFFLE TOGGLE -->
+  <div class="tb-toggle">
+    <label title="Shuffle question and option order">🔀</label>
+    <div class="toggle-track" id="shuffle-toggle" role="switch" aria-checked="false" tabindex="0"
+         onclick="TopBar.toggleShuffle()" onkeydown="if(event.key==='Enter'||event.key===' ')TopBar.toggleShuffle()"></div>
+    <label style="font-size:.62rem;opacity:.7;">Shuffle</label>
+  </div>
+
+  <div class="tb-sep"></div>
+
+  <!-- 5. BOOKMARK FILTER TOGGLE -->
+  <div class="tb-toggle">
+    <label title="Show only bookmarked questions">🔖</label>
+    <div class="toggle-track" id="bm-filter-toggle" role="switch" aria-checked="false" tabindex="0"
+         onclick="TopBar.toggleBookmarkFilter()" onkeydown="if(event.key==='Enter'||event.key===' ')TopBar.toggleBookmarkFilter()"></div>
+    <label style="font-size:.62rem;opacity:.7;">Saved</label>
+  </div>
+
+  <div class="tb-sep"></div>
+
+  <!-- 6. DEVICE PREVIEW -->
+  <select id="device-select" onchange="TopBar.device(this.value)" title="Screen size: Auto fits your device. Pick Mobile/Tablet/Laptop to preview a frame">
+    <option value="auto">🖥 Auto</option>
+    <option value="mobile">📱 Mobile</option>
+    <option value="tablet">📲 Tablet</option>
+    <option value="laptop">💻 Laptop</option>
+  </select>
+  <button class="tb-icon-btn" id="qp-gear" onclick="QuizPro.openOptions()" title="Options · الأوبشنز والتصحيح" aria-label="Options">⚙️</button>
+
+  <!-- Spacer pushes timer to right -->
+  <span style="flex:1;"></span>
+
+  <!-- TIMER (moved into top bar, always visible) -->
+  <div id="tb-timer-wrap" style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+    <span class="xt-display" style="font-family:'Courier New',monospace;font-size:1rem;font-weight:900;color:var(--accent);letter-spacing:.06em;min-width:46px;text-align:center;">00:00</span>
+    <button class="tb-icon-btn xt-play" onclick="examTimerToggle()" title="Start/Pause">▶</button>
+    <button class="tb-icon-btn" onclick="examTimerReset()" title="Reset">⟳</button>
+  </div>
+
+</div>
+
+<!-- Exam mode indicator banner -->
+<div id="exam-mode-banner">⚠ EXAM MODE — Answers hidden until you click "Submit Exam"</div>
+
+<!-- Mobile sidebar overlay -->
+<div id="sb-overlay" onclick="MobileNav.close()"></div>
+
+<!-- ══════════════════════════════════ LAYOUT ══════════════════════════════════ -->
+<div id="layout">
+
+<!-- ══════════════════ SIDEBAR ══════════════════ -->
+<nav id="sb">
+  <div id="sb-head">
+    <h1>AI Midterm</h1>
+    <p>MCQ bank</p>
+    <div class="total-pill">⚡ 27 Questions</div>
+  </div>
+  <button class="cb active" onclick="show('welcome')"><span class="ci">🏠</span><span class="cl">Home</span></button>
+  <button class="cb" onclick="show('ch1')" style="background:rgba(var(--accent-rgb),.06);border-left:3px solid rgba(var(--accent-rgb),.4);"><span class="ci">📝</span><span class="cl" style="color:var(--accent);font-weight:700;">Midterm Exam</span><span class="cn" style="background:var(--accent);color:var(--on-accent);">27</span></button>
+  <button class="cb" onclick="show('chFM')" style="opacity:.75"><span class="ci">🎯</span><span class="cl">Final Mix</span><span class="cn">🔒</span></button>
+<button class="cb" id="perf-report-btn" onclick="show('perfReport')" style="background:rgba(var(--accent-rgb),.08);border-left:3px solid rgba(var(--accent-rgb),.6);">
+  <span class="ci">📊</span>
+  <span class="cl" style="color:var(--accent-hi);font-weight:700">تقرير أدائي</span>
+</button>
+<button class="cb" id="review-bank-btn" onclick="show('reviewBank')">
+  <span class="ci">⚠️</span>
+  <span class="cl" style="color:var(--accent3);font-weight:700">Review Bank</span>
+  <span class="cn" id="review-bank-count" style="background:var(--accent3);color:var(--on-accent3)">0</span>
+</button>
+<button class="cb" id="reset-all-btn" onclick="resetAllProgress()">
+  <span class="ci">🔄</span>
+  <span class="cl" style="color:var(--wrong)">Reset All Progress</span>
+</button>
+
+  <div id="sb-foot">Artificial Intelligence<br/>Midterm exam</div>
+</nav>
+
+<!-- ══════════════════ MAIN ══════════════════ -->
+<main id="main">
+<!-- WELCOME -->
+ <div id="exam-timer-widget" class="hidden">
+  <span class="xt-display">00:00</span>
+  <div id="exam-timer-controls">
+    <button onclick="examTimerToggle()" class="xt-play">▶</button>
+    <button onclick="examTimerReset()">⟳</button>
+    <button onclick="document.getElementById('exam-timer-widget').classList.add('hidden')">✕</button>
+  </div>
+</div>
+<button id="exam-timer-fab"
+        onclick="document.getElementById('exam-timer-widget').classList.toggle('hidden')"
+        title="Toggle Timer">⏱</button>
+<div id="welcome">
+  <div class="wi">⚡</div>
+  <h2>AI Midterm</h2>
+  <p>اختار الفصل</p>
+  <div class="cgrid">
+    <div class="ccard" onclick="show('ch1')" style="border-color:rgba(var(--accent-rgb),.35);"><div class="cci">📝</div><h3>Midterm Exam</h3><p>Search · Heuristics · Minimax · Hill Climbing</p><div class="cq">27 MCQ</div><div class="cqt">Mid exam</div></div>
+    <div class="ccard" onclick="show('chFM')" style="opacity:.75"><div class="cci">🎯</div><h3>Final Mix</h3><p>أهم أسئلة المادة كلها</p><div class="cq">🔒 في الانتظار</div><div class="cqt">بيتجهز بعد المحاضرة التانية</div></div>
+  </div>
+  <div class="credit" dir="ltr">Made by <b>Arsany</b></div>
+</div>
+
+<!-- CHAPTER PANELS (generated by scripts/build_quiz.py) -->
+<div id="ch1" class="chapter-panel" data-tag="L1">
+  <div class="ch-hdr"><div class="ch-ico">📝</div><div class="ch-ttl"><h2>Midterm Exam</h2><p>Search · Heuristics · Minimax · Hill Climbing</p></div>
+  <div class="ch-stats"><div class="stat" style="color:var(--accent)">MCQ: <b>27</b></div><div class="stat" style="color:var(--muted)">Mid exam</div></div></div>
+  <div class="tb"><button class="btn btn-p" onclick="showAll('ch1')">👁 Show All Answers</button><button class="btn btn-g" onclick="hideAll('ch1')">🙈 Hide All</button><button class="btn btn-retry" onclick="examRetry('ch1')">🔄 Retry</button></div>
+  
+  <div id="ch1-q"></div>
+</div>
+<div id="chFM" class="chapter-panel">
+  <div class="ch-hdr"><div class="ch-ico">🎯</div><div class="ch-ttl"><h2>Final Mix</h2><p>أهم أسئلة المادة كلها</p></div><div class="ch-stats"><div class="stat">🔒 <b>في الانتظار</b></div></div></div>
+  <div class="gd-call" dir="rtl"><span>🔒</span><div dir="auto">🔒 القسم ده بيتفتح بعد إضافة المحاضرة التانية.</div></div>
+</div>
+
+<div id="perfReport" class="chapter-panel"><div id="perf-report-body"></div></div>
+
+<div id="reviewBank" class="chapter-panel">
+  <div class="ch-hdr">
+    <div class="ch-ico">⚠️</div>
+    <div class="ch-ttl">
+      <h2>Review Bank — Mistakes</h2>
+      <p>Every question you answered incorrectly. Study the explanations and retry.</p>
+    </div>
+    <div class="ch-stats">
+      <div class="stat" style="color:var(--accent3)">Mistakes: <b id="rb-total-count">0</b></div>
+    </div>
+  </div>
+  <div class="tb">
+    <button class="btn btn-p" onclick="clearReviewBank()">🗑 Clear All Mistakes</button>
+  </div>
+  <div id="review-bank-q"></div>
+</div>
+
+</main>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  COMPLETE DATABASE: MCQ + TRACE QUESTIONS
+// ═══════════════════════════════════════════════════════
+const DB = {"ch1":{"mcq":[{"d":"easy","t":"Conceptual","q":"Which data structure is used by DFS?","o":["Queue","Stack","Priority Queue","Linked List"],"a":"B","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">DFS<\/bdi> بينزل في مسار واحد ويرجع لآخر عقدة دخلها، وده شغل الـ <b><bdi dir=\"ltr\">Stack<\/bdi><\/b> لأنه <bdi dir=\"ltr\">LIFO<\/bdi>.<\/div>","k":"DFS data structure","n":1,"hr":"الـ DFS بينزل في مسار واحد ويرجع لآخر عقدة دخلها، وده شغل الـ <b>Stack<\/b> لأنه LIFO."},{"d":"easy","t":"Conceptual","q":"DFS prefers exploring:","o":["All neighbors first","The shallowest node first","One path deeply first","Lowest-cost paths"],"a":"C","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">DFS<\/bdi> معناه <b><bdi dir=\"ltr\">Depth-First<\/bdi><\/b> يعني بينزل في مسار واحد لآخره الأول وبعدين يرجع يجرب مسار تاني.<\/div>","k":"DFS behavior","n":2,"hr":"الـ DFS معناه <b>Depth-First<\/b> يعني بينزل في مسار واحد لآخره الأول وبعدين يرجع يجرب مسار تاني."},{"d":"easy","t":"Conceptual","q":"DFS is most suitable when:","o":["The branching factor is high","The depth is small","Optimality is required","Cost must be minimized"],"a":"B","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">DFS<\/bdi> بيخلّص المسار بسرعة لما <b>العمق صغير<\/b>، لكنه مش <bdi dir=\"ltr\">optimal<\/bdi> ومبيبصش على التكلفة.<\/div>","k":"DFS use case","n":3,"hr":"الـ DFS بيخلّص المسار بسرعة لما <b>العمق صغير<\/b>، لكنه مش optimal ومبيبصش على التكلفة."},{"d":"easy","t":"Conceptual","q":"BFS uses which data structure?","o":["Stack","Queue","Priority Queue","Hash Table"],"a":"B","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">BFS<\/bdi> بيفتح المستوى بالمستوى، فأول عقدة تدخل هي أول عقدة تتفتح، وده شغل الـ <b><bdi dir=\"ltr\">Queue<\/bdi><\/b> (<bdi dir=\"ltr\">FIFO<\/bdi>).<\/div>","k":"BFS data structure","n":4,"hr":"الـ BFS بيفتح المستوى بالمستوى، فأول عقدة تدخل هي أول عقدة تتفتح، وده شغل الـ <b>Queue<\/b> (FIFO)."},{"d":"easy","t":"Conceptual","q":"UCS expands nodes based on:","o":["Depth","Parent ordering","Path cost","Heuristic"],"a":"C","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">UCS<\/bdi> بيفتح العقدة اللي <b><bdi dir=\"ltr\">Path cost<\/bdi><\/b> بتاعها من البداية هو الأقل، ومبيستخدمش <bdi dir=\"ltr\">heuristic<\/bdi>.<\/div>","k":"UCS expansion","n":5,"hr":"الـ UCS بيفتح العقدة اللي <b>Path cost<\/b> بتاعها من البداية هو الأقل، ومبيستخدمش heuristic."},{"d":"easy","t":"Conceptual","q":"UCS uses which data structure?","o":["Queue","Priority Queue","Stack","Linked List"],"a":"B","h":"<div dir=\"rtl\" style=\"margin-top:4px\">لازم يطلّع العقدة الأقل تكلفة في كل خطوة، وده شغل الـ <b><bdi dir=\"ltr\">Priority Queue<\/bdi><\/b>.<\/div>","k":"UCS data structure","n":6,"hr":"لازم يطلّع العقدة الأقل تكلفة في كل خطوة، وده شغل الـ <b>Priority Queue<\/b>."},{"d":"medium","t":"Conceptual","q":"UCS avoids loops by checking:","o":["Frontier","Visited set with cost","Depth","Heuristic"],"a":"B","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">UCS<\/bdi> بيحتفظ بـ <b><bdi dir=\"ltr\">Visited set<\/bdi><\/b> مع تكلفة كل عقدة، فلو رجع لعقدة بتكلفة مش أقل بيتجاهلها.<\/div>","k":"UCS loop avoidance","n":7,"hr":"الـ UCS بيحتفظ بـ <b>Visited set<\/b> مع تكلفة كل عقدة، فلو رجع لعقدة بتكلفة مش أقل بيتجاهلها."},{"d":"easy","t":"Conceptual","q":"UCS selects nodes based on:","o":["f(n) = h(n)","f(n) = g(n)","f(n) = d(n)","f(n) = -cost"],"a":"B","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">UCS<\/bdi> بيرتب بـ <code><bdi dir=\"ltr\">f(n)<\/bdi> = <bdi dir=\"ltr\">g(n)<\/bdi><\/code> بس، يعني التكلفة من البداية من غير أي تقدير للهدف.<\/div>","k":"UCS evaluation","n":8,"hr":"الـ UCS بيرتب بـ <code>f(n) = g(n)<\/code> بس، يعني التكلفة من البداية من غير أي تقدير للهدف."},{"d":"medium","t":"Conceptual","q":"UCS is equivalent to:","o":["A* with h(n)=0","Greedy search","BFS","Minimax"],"a":"A","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">A*<\/bdi> معادلته <code><bdi dir=\"ltr\">g(n) + h(n)<\/bdi><\/code>، ولو <code><bdi dir=\"ltr\">h(n)<\/bdi> = 0<\/code> تبقى <code><bdi dir=\"ltr\">f(n)<\/bdi> = <bdi dir=\"ltr\">g(n)<\/bdi><\/code> وده بالظبط الـ <b><bdi dir=\"ltr\">UCS<\/bdi><\/b>.<\/div>","k":"UCS vs A*","n":9,"hr":"الـ A* معادلته <code>g(n) + h(n)<\/code>، ولو <code>h(n) = 0<\/code> تبقى <code>f(n) = g(n)<\/code> وده بالظبط الـ <b>UCS<\/b>."},{"d":"easy","t":"Conceptual","q":"Greedy search uses:","o":["g(n)","h(n)","f(n) = g(n)","f(n) = g + h"],"a":"B","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">Greedy<\/bdi> بيبص على <code><bdi dir=\"ltr\">h(n)<\/bdi><\/code> بس، يعني تقديره للمسافة المتبقية للهدف.<\/div>","k":"Greedy evaluation","n":10,"hr":"الـ Greedy بيبص على <code>h(n)<\/code> بس، يعني تقديره للمسافة المتبقية للهدف."},{"d":"easy","t":"Conceptual","q":"Greedy uses:","o":["Priority Queue","Stack","Queue","Hash Table"],"a":"A","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">Greedy<\/bdi> بيطلّع العقدة الأقل <code><bdi dir=\"ltr\">h(n)<\/bdi><\/code> في كل خطوة، فمحتاج <b><bdi dir=\"ltr\">Priority Queue<\/bdi><\/b>.<\/div>","k":"Greedy data structure","n":11,"hr":"الـ Greedy بيطلّع العقدة الأقل <code>h(n)<\/code> في كل خطوة، فمحتاج <b>Priority Queue<\/b>."},{"d":"easy","t":"Conceptual","q":"Greedy search is also known as:","o":["Heuristic search","Admissible search","Optimal search","Blind search"],"a":"A","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">Greedy<\/bdi> بيعتمد على <b><bdi dir=\"ltr\">heuristic<\/bdi><\/b> عشان يختار، فبيتسمى <bdi dir=\"ltr\">Heuristic search<\/bdi>. أما الـ <bdi dir=\"ltr\">Blind<\/bdi> فهي <bdi dir=\"ltr\">BFS<\/bdi> و <bdi dir=\"ltr\">DFS<\/bdi> و <bdi dir=\"ltr\">UCS<\/bdi>.<\/div>","k":"Greedy naming","n":12,"hr":"الـ Greedy بيعتمد على <b>heuristic<\/b> عشان يختار، فبيتسمى Heuristic search. أما الـ Blind فهي BFS و DFS و UCS."},{"d":"easy","t":"Conceptual","q":"Greedy search evaluation function is:","o":["f(n) = g(n)","f(n) = h(n)","f(n) = g + h","f(n) = cost"],"a":"B","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">Greedy<\/bdi> بيرتب بـ <code><bdi dir=\"ltr\">f(n)<\/bdi> = <bdi dir=\"ltr\">h(n)<\/bdi><\/code> وبيتجاهل التكلفة اللي اتدفعت.<\/div>","k":"Greedy evaluation","n":13,"hr":"الـ Greedy بيرتب بـ <code>f(n) = h(n)<\/code> وبيتجاهل التكلفة اللي اتدفعت."},{"d":"easy","t":"Conceptual","q":"Greedy search is best for:","o":["Quick solutions","Optimal solutions","Deep analysis","Minimizing cost"],"a":"A","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">Greedy<\/bdi> بيروح ناحية الهدف على طول، فبيدّي حل <b>سريع<\/b> لكن مش مضمون يكون الأحسن.<\/div>","k":"Greedy use case","n":14,"hr":"الـ Greedy بيروح ناحية الهدف على طول، فبيدّي حل <b>سريع<\/b> لكن مش مضمون يكون الأحسن."},{"d":"easy","t":"Conceptual","q":"Greedy search is best used when we need:","o":["Optimal solution","Quick estimation","Exhaustive search","Deep search"],"a":"B","h":"<div dir=\"rtl\" style=\"margin-top:4px\">لما محتاج <b><bdi dir=\"ltr\">Quick estimation<\/bdi><\/b> بدل أحسن حل، الـ <bdi dir=\"ltr\">Greedy<\/bdi> مناسب لأنه بيقلل البحث.<\/div>","k":"Greedy use case","n":15,"hr":"لما محتاج <b>Quick estimation<\/b> بدل أحسن حل، الـ Greedy مناسب لأنه بيقلل البحث."},{"d":"easy","t":"Conceptual","q":"Minimax is used in:","o":["Graph search","Game playing","Optimization","Random walk"],"a":"B","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <b><bdi dir=\"ltr\">Minimax<\/bdi><\/b> خاص بالألعاب اللي فيها لاعبين ضد بعض، <bdi dir=\"ltr\">MAX<\/bdi> بيكبّر النتيجة و <bdi dir=\"ltr\">MIN<\/bdi> بيصغّرها.<\/div>","k":"Minimax","n":16,"hr":"الـ <b>Minimax<\/b> خاص بالألعاب اللي فيها لاعبين ضد بعض، MAX بيكبّر النتيجة و MIN بيصغّرها."},{"d":"medium","t":"Conceptual","q":"Minimax assumes opponents are:","o":["Random","Optimal","Worst","Irrelevant"],"a":"B","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">Minimax<\/bdi> بيفترض إن الخصم بيلعب <b><bdi dir=\"ltr\">optimal<\/bdi><\/b>، فبتختار حركتك على أساس أصعب رد ممكن.<\/div>","k":"Minimax","n":17,"hr":"الـ Minimax بيفترض إن الخصم بيلعب <b>optimal<\/b>، فبتختار حركتك على أساس أصعب رد ممكن."},{"d":"easy","t":"Conceptual","q":"Hill Climbing moves to:","o":["Best neighbor","Random neighbor","Lowest cost","Worst neighbor"],"a":"A","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">Hill Climbing<\/bdi> في كل خطوة بيروح لـ <b>أحسن جار<\/b> للحالة الحالية.<\/div>","k":"Hill Climbing","n":18,"hr":"الـ Hill Climbing في كل خطوة بيروح لـ <b>أحسن جار<\/b> للحالة الحالية."},{"d":"medium","t":"Conceptual","q":"Hill-Climbing stops when:","o":["It reaches the global goal","It moves farther from the goal","It reaches a state with no better neighbor","It enters an infinite loop"],"a":"C","h":"<div dir=\"rtl\" style=\"margin-top:4px\">بيقف لما <b>مفيش جار أحسن<\/b>، وممكن تبقى <bdi dir=\"ltr\">local maximum<\/bdi> مش الهدف الحقيقي.<\/div>","k":"Hill Climbing","n":19,"hr":"بيقف لما <b>مفيش جار أحسن<\/b>، وممكن تبقى local maximum مش الهدف الحقيقي."},{"d":"easy","t":"Conceptual","q":"A* uses:","o":["Stack","Priority Queue","Queue","Set"],"a":"B","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">A*<\/bdi> بيطلّع العقدة الأقل <code><bdi dir=\"ltr\">f(n)<\/bdi><\/code> في كل خطوة، فبيستخدم <b><bdi dir=\"ltr\">Priority Queue<\/bdi><\/b>.<\/div>","k":"A* data structure","n":20,"hr":"الـ A* بيطلّع العقدة الأقل <code>f(n)<\/code> في كل خطوة، فبيستخدم <b>Priority Queue<\/b>."},{"d":"easy","t":"Calculation","q":"A* f(n) = g(n) + h(n). If g = 3 and h = 5, f = ?","o":["3","8","5","10"],"a":"B","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">A*<\/bdi> بيجمع الاتنين: <code><bdi dir=\"ltr\">f<\/bdi> = 3 + 5 = 8<\/code>.<\/div>","k":"A* evaluation","n":21,"hr":"الـ A* بيجمع الاتنين: <code>f = 3 + 5 = 8<\/code>."},{"d":"easy","t":"Conceptual","q":"Uniform Cost Search expands nodes based on:","o":["Depth","Heuristic value","Cumulative cost","Random selection"],"a":"C","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">UCS<\/bdi> بيفتح العقدة صاحبة أقل <b><bdi dir=\"ltr\">Cumulative cost<\/bdi><\/b> وهو <code><bdi dir=\"ltr\">g(n)<\/bdi><\/code>.<\/div>","k":"UCS expansion","n":22,"hr":"الـ UCS بيفتح العقدة صاحبة أقل <b>Cumulative cost<\/b> وهو <code>g(n)<\/code>."},{"d":"easy","t":"Conceptual","q":"UCS uses which data structure?","o":["FIFO queue","LIFO stack","Priority queue ordered by cost","Binary heap"],"a":"C","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">UCS<\/bdi> محتاج يطلّع الأقل تكلفة، فبيستخدم <b><bdi dir=\"ltr\">Priority queue<\/bdi><\/b> مترتبة بالتكلفة.<\/div>","k":"UCS data structure","n":23,"hr":"الـ UCS محتاج يطلّع الأقل تكلفة، فبيستخدم <b>Priority queue<\/b> مترتبة بالتكلفة."},{"d":"easy","t":"Conceptual","q":"Greedy Best-First Search uses which evaluation function?","o":["f(n)=g(n)","f(n)=h(n)","f(n)=g+h","g−h"],"a":"B","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">Greedy Best-First<\/bdi> بيرتب بـ <code><bdi dir=\"ltr\">f(n)<\/bdi> = <bdi dir=\"ltr\">h(n)<\/bdi><\/code>. أما <code><bdi dir=\"ltr\">g(n)<\/bdi><\/code> فللـ <bdi dir=\"ltr\">UCS<\/bdi> و <code><bdi dir=\"ltr\">g + h<\/bdi><\/code> للـ <bdi dir=\"ltr\">A*<\/bdi>.<\/div>","k":"Greedy evaluation","n":24,"hr":"الـ Greedy Best-First بيرتب بـ <code>f(n) = h(n)<\/code>. أما <code>g(n)<\/code> فللـ UCS و <code>g + h<\/code> للـ A*."},{"d":"easy","t":"Conceptual","q":"What does Greedy Best-First Search expand?","o":["The deepest node","Node closest to start","Node closest to goal","Cheapest node"],"a":"C","h":"<div dir=\"rtl\" style=\"margin-top:4px\">بيفتح العقدة اللي <code><bdi dir=\"ltr\">h(n)<\/bdi><\/code> بتاعها الأقل، يعني <b>الأقرب للهدف<\/b> في تقديره.<\/div>","k":"Greedy behavior","n":25,"hr":"بيفتح العقدة اللي <code>h(n)<\/code> بتاعها الأقل، يعني <b>الأقرب للهدف<\/b> في تقديره."},{"d":"medium","t":"Conceptual","q":"Why is Greedy Best-First Search NOT optimal?","o":["Because it uses full path cost","Because it ignores g(n)","Because heuristics are incorrect","Because branching factor is high"],"a":"B","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">Greedy<\/bdi> بيتجاهل <code><bdi dir=\"ltr\">g(n)<\/bdi><\/code> فممكن يختار مسار قريب من الهدف بس تكلفته الكلية عالية.<\/div>","k":"Greedy optimality","n":26,"hr":"الـ Greedy بيتجاهل <code>g(n)<\/code> فممكن يختار مسار قريب من الهدف بس تكلفته الكلية عالية."},{"d":"medium","t":"Conceptual","q":"Greedy Best-First Search is:","o":["Complete & Optimal","Complete but NOT Optimal","NOT Complete and NOT Optimal","Optimal but NOT complete"],"a":"C","h":"<div dir=\"rtl\" style=\"margin-top:4px\">الـ <bdi dir=\"ltr\">Greedy<\/bdi> <b>مش <bdi dir=\"ltr\">Complete<\/bdi><\/b> (ممكن يلف أو يتوه ومايلاقيش حل) و <b>مش <bdi dir=\"ltr\">Optimal<\/bdi><\/b> لأنه بيتجاهل <code><bdi dir=\"ltr\">g(n)<\/bdi><\/code>.<\/div>","k":"Greedy completeness","n":27,"hr":"الـ Greedy <b>مش Complete<\/b> (ممكن يلف أو يتوه ومايلاقيش حل) و <b>مش Optimal<\/b> لأنه بيتجاهل <code>g(n)<\/code>."}],"trace":[]}};
+
+function toggleLecSummary(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+// ═══════════════════════════════════════════
+//  RENDER ENGINE
+// ═══════════════════════════════════════════
+const rendered = {};
+
+function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function buildQ(q, ch, isTrace){
+  const id = `${ch}_${q.n}`;
+  const code = q.c ? `<pre class="qcode">${esc(q.c)}</pre>` : '';
+  const opts = q.o.map((o,i)=>{
+    const L = ['A','B','C','D'][i];
+    return `<div class="opt"><span class="ol">${L}</span><span>${esc(o)}</span></div>`;
+  }).join('');
+  const ansTxt = esc(q.o[['A','B','C','D'].indexOf(q.a)]);
+  const cardCls = isTrace ? 'qc trace-card' : 'qc';
+  const typeCls = isTrace ? 'qt trace' : 'qt';
+  return `<div class="${cardCls}" id="${id}">
+    <div class="qm">
+      <span class="qn">Q${q.n}</span>
+      <span class="qd ${q.d}">${q.d.charAt(0).toUpperCase()+q.d.slice(1)}</span>
+      <span class="${typeCls}">${isTrace ? q.t : q.t}</span>
+    </div>
+    <div class="qtxt">${q.q}</div>
+    ${code}
+    <div class="opts">${opts}</div>
+    <button class="tbtn" onclick="toggle('${id}')">
+      <span class="lbl">💡 Show Answer & Hint</span><span class="arr">▼</span>
+    </button>
+    <div class="asec" id="${id}_ans">
+      <div class="abox">
+        <div class="albl">✔ Correct Answer</div>
+        <div class="acor">Option ${q.a}: ${ansTxt}</div>
+        <div class="ahint">💬 <strong>Hint:</strong> ${q.h}</div>
+        ${typeof guideLinksRow==='function'?guideLinksRow(ch,q.n):''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function render(ch){
+  if(rendered[ch]) return;
+  const cont = document.getElementById(`${ch}-q`);
+  if(!cont) return;
+  const data = DB[ch];
+  let html = '';
+
+  // MCQ section
+  html += `<div class="sec-div"><span class="mcq">📝 MCQ Questions (${data.mcq.length})</span></div>`;
+  html += data.mcq.map(q => buildQ(q, ch, false)).join('');
+
+  // Trace section
+  if(data.trace && data.trace.length > 0){
+    html += `<div class="sec-div"><span class="trace">🔍 Trace Questions (${data.trace.length})</span></div>`;
+    html += data.trace.map(q => buildQ(q, ch, true)).join('');
+  }
+
+  cont.innerHTML = html;
+  rendered[ch] = true;
+}
+
+function show(id){
+  if(typeof gdBackClear==='function')gdBackClear();
+  document.getElementById('welcome').style.display = 'none';
+  document.querySelectorAll('.chapter-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.cb').forEach(b=>b.classList.remove('active'));
+  if(id === 'welcome'){
+    document.getElementById('welcome').style.display = 'flex';
+    document.querySelector('.cb').classList.add('active');
+    return;
+  }
+  const panel = document.getElementById(id);
+  if(panel){
+    panel.classList.add('active');
+    render(id);
+    if(typeof chTabInit==='function')chTabInit(id);
+    scrollMainTop();
+  }
+  document.querySelectorAll('.cb').forEach(b=>{
+    if(b.getAttribute('onclick')===`show('${id}')`) b.classList.add('active');
+  });
+}
+
+function toggle(id){
+  const sec = document.getElementById(`${id}_ans`);
+  const btn = sec.previousElementSibling;
+  const open = sec.classList.contains('open');
+  sec.classList.toggle('open');
+  btn.classList.toggle('open');
+  btn.querySelector('.lbl').textContent = open ? '💡 Show Answer & Hint' : '🙈 Hide Answer';
+}
+
+function showAll(ch){
+  document.querySelectorAll(`#${ch}-q .asec`).forEach(s=>{
+    s.classList.add('open');
+    const b = s.previousElementSibling;
+    b.classList.add('open');
+    b.querySelector('.lbl').textContent = '🙈 Hide Answer';
+  });
+}
+
+function hideAll(ch){
+  document.querySelectorAll(`#${ch}-q .asec`).forEach(s=>{
+    s.classList.remove('open');
+    const b = s.previousElementSibling;
+    b.classList.remove('open');
+    b.querySelector('.lbl').textContent = '💡 Show Answer & Hint';
+  });
+}
+
+// init
+document.getElementById('welcome').style.display = 'flex';
+</script>
+<!-- ═══════════════════════════════════════════════════════════
+     EXAM ENGINE v2.0 — Interactive Quiz, Grading & Review Bank
+     ═══════════════════════════════════════════════════════════ -->
+<style>
+
+/* ── Timer widget ── */
+#exam-timer-widget{position:fixed;top:76px;right:18px;background:var(--card);
+  border:1px solid var(--border);border-radius:12px;padding:11px 15px;z-index:9990;
+  box-shadow:0 8px 24px rgba(0,0,0,.45);min-width:126px;text-align:center;transition:opacity .25s;}
+#exam-timer-widget.hidden{display:none!important;}
+#exam-timer-widget .xt-display{display:block;font-size:1.55rem;font-weight:900;
+  font-family:'Courier New',monospace;color:var(--accent);letter-spacing:.06em;margin-bottom:8px;}
+#exam-timer-controls{display:flex;gap:5px;justify-content:center;}
+#exam-timer-controls button{background:var(--border);border:none;border-radius:5px;
+  color:var(--text);padding:4px 9px;font-size:.78rem;cursor:pointer;transition:background .2s;}
+#exam-timer-controls button:hover{background:var(--accent);color:var(--on-accent);}
+
+/* ── Timer FAB (replaces old FAB) ── */
+#exam-timer-fab{position:fixed;bottom:24px;right:20px;width:46px;height:46px;
+  border-radius:50%;background:var(--accent2);color:var(--on-accent2);border:none;font-size:1.2rem;
+  cursor:pointer;z-index:9989;box-shadow:0 4px 16px rgba(var(--accent2-rgb),.4);
+  transition:transform .2s,box-shadow .2s;display:flex;align-items:center;justify-content:center;}
+#exam-timer-fab:hover{transform:scale(1.12);box-shadow:0 6px 24px rgba(var(--accent2-rgb),.65);}
+</style>
+
+<!-- ═══════════════════════════════════════════════════════════
+     TOP BAR ENGINE — Theme, Font, Mode, Shuffle, Bookmark
+     EXAM ENGINE v3.0 — Interactive Quiz, Grading & Review Bank
+     ═══════════════════════════════════════════════════════════ -->
+<style>
+/* ── Option interactivity ── */
+.opt{cursor:pointer;user-select:none;transition:background .15s,border-color .15s;}
+.opt.opt-correct{background:rgba(var(--green-rgb),.18)!important;border-color:var(--green)!important;}
+.opt.opt-wrong{background:rgba(var(--wrong-rgb),.18)!important;border-color:var(--wrong)!important;}
+.opt.opt-correct .ol{background:var(--green)!important;color:var(--on-green)!important;}
+.opt.opt-wrong .ol{background:var(--wrong)!important;color:var(--on-wrong)!important;}
+.opt.opt-locked{pointer-events:none!important;cursor:default!important;}
+.qc:not([data-answered]) .opt:hover{background:rgba(var(--accent-rgb),.08)!important;border-color:var(--accent)!important;}
+
+/* ── Answer badge ── */
+.answer-badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:10px;
+  font-size:.67rem;font-weight:800;margin-left:auto;flex-shrink:0;}
+.answer-badge.correct{background:rgba(var(--green-rgb),.15);color:var(--green);border:1px solid rgba(var(--green-rgb),.3);}
+.answer-badge.wrong{background:rgba(var(--wrong-rgb),.15);color:var(--wrong);border:1px solid rgba(var(--wrong-rgb),.35);}
+
+/* ── Progress bar ── */
+.exam-prog-wrap{background:var(--card);border:1px solid var(--border);
+  border-radius:8px;padding:11px 15px;margin-bottom:16px;}
+.exam-prog-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;}
+.exam-prog-label{font-size:.66rem;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;}
+.exam-prog-stats{font-size:.72rem;color:var(--muted);}
+.exam-prog-track{height:7px;background:var(--border);border-radius:4px;position:relative;overflow:hidden;}
+.exam-prog-bg{position:absolute;top:0;left:0;height:100%;background:rgba(var(--accent-rgb),.18);border-radius:4px;transition:width .4s ease;}
+.exam-prog-bar{position:absolute;top:0;left:0;height:100%;background:var(--green);border-radius:4px;transition:width .45s ease;}
+
+/* ── Completion summary card ── */
+.exam-sum-card{background:var(--card);border:1px solid rgba(var(--accent-rgb),.25);
+  border-radius:14px;padding:30px 22px 26px;margin:22px 0;text-align:center;animation:fadeIn .4s ease;}
+.sum-icon{font-size:2.4rem;margin-bottom:8px;}
+.sum-title{font-size:1.2rem;font-weight:800;
+  background:linear-gradient(90deg,var(--accent-hi),var(--accent));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:14px;}
+.sum-score{font-size:2.8rem;font-weight:900;color:var(--accent);line-height:1;}
+.sum-score span{font-size:1.35rem;color:var(--muted);}
+.sum-pct{font-size:1rem;font-weight:700;margin:7px 0 18px;}
+.sum-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+
+/* ── Sidebar additions ── */
+#review-bank-btn{background:rgba(var(--accent3-rgb),.06)!important;border-left-color:rgba(var(--accent3-rgb),.45)!important;}
+#reset-all-btn{background:rgba(var(--wrong-rgb),.05)!important;border-left-color:rgba(var(--wrong-rgb),.35)!important;}
+
+/* ── Review Bank ── */
+#review-bank-q .opt{pointer-events:none!important;cursor:default!important;}
+.rb-empty{text-align:center;padding:60px 20px;color:var(--muted);}
+.rb-empty .rb-icon{font-size:3rem;margin-bottom:12px;}
+.rb-empty h3{font-size:1rem;font-weight:700;color:var(--green);margin-bottom:6px;}
+
+/* ── Bookmark filter notice ── */
+.bm-filter-notice{
+  background:rgba(var(--accent3-rgb),.1);border:1px solid rgba(var(--accent3-rgb),.35);
+  border-radius:8px;padding:10px 15px;margin-bottom:14px;
+  font-size:.78rem;color:var(--accent3);font-weight:700;display:none;
+}
+.bm-filter-notice.active{display:block;}
+.bm-hidden{display:none!important;}
+</style>
+
+<script>
+(function(){
+'use strict';
+
+/* ════════════════════════════════════════════
+   STATE  —  localStorage
+════════════════════════════════════════════ */
+var SKEY='quiz_ai-midterm_ee07cf';
+/* Storage-safe state: if localStorage is blocked (file opened from WhatsApp / in-app browser / private mode) the quiz keeps
+   working for the session from memory, so progress, auto-report and celebration still fire. */
+var _memGS='{}',_lsOK=true;
+function gs(){
+  if(_lsOK){try{return JSON.parse(localStorage.getItem(SKEY)||'{}');}catch(e){_lsOK=false;}}
+  try{return JSON.parse(_memGS);}catch(e){return{};}
+}
+function ss(s){
+  var j=JSON.stringify(s);_memGS=j;
+  if(_lsOK){try{localStorage.setItem(SKEY,j);}catch(e){_lsOK=false;}}
+}
+function clearState(){_memGS='{}';try{localStorage.removeItem(SKEY);}catch(e){}}
+
+/* ════════════════════════════════════════════
+   TOP BAR CONTROLLER
+════════════════════════════════════════════ */
+var TopBar = (function(){
+
+  /* ── Internal state ── */
+  var _theme      = 'light';  // 'dark' | 'light'  (default = light)
+  var _fontSize   = 1.0;      // rem multiplier (0.8 → 1.4)
+  var _examMode   = false;    // true = exam mode
+  var _shuffle    = false;    // true = randomize order
+  var _bmFilter   = false;    // true = show only bookmarked
+  var _deviceMode = 'auto';   // 'auto' | 'mobile' | 'tablet' | 'laptop'
+  var _examAnswers= {};       // {chId: {qn: selectedLabel}}
+  var _revealed   = false;    // has Submit been clicked?
+
+  /* ── Persist/restore settings ── */
+  function _save(){
+    var cfg={theme:_theme,fontSize:_fontSize,examMode:_examMode,shuffle:_shuffle,deviceMode:_deviceMode};
+    try{localStorage.setItem('quizTopBar_v1',JSON.stringify(cfg));}catch(e){}
+  }
+  function _load(){
+    try{
+      var raw=localStorage.getItem('quizTopBar_v1');
+      if(!raw)return;
+      var cfg=JSON.parse(raw);
+      if(cfg.theme)_theme=cfg.theme;
+      if(typeof cfg.fontSize==='number')_fontSize=cfg.fontSize;
+      if(cfg.deviceMode)_deviceMode=cfg.deviceMode;
+      // NOTE: examMode and shuffle are intentionally NOT restored on reload
+      // so the student starts fresh each session.
+    }catch(e){}
+  }
+
+  /* ── DOM helpers ── */
+  function _setTrack(id, on){
+    var t=document.getElementById(id);
+    if(!t)return;
+    if(on){t.classList.add('on');t.setAttribute('aria-checked','true');}
+    else{t.classList.remove('on');t.setAttribute('aria-checked','false');}
+  }
+  function _applyTheme(){
+    document.documentElement.setAttribute('data-theme',_theme);
+    _setTrack('theme-toggle',_theme==='light');
+  }
+  function _applyFontSize(){
+    document.documentElement.style.setProperty('--base-font-size',_fontSize+'rem');
+  }
+  function _applyExamMode(){
+    _setTrack('mode-toggle',_examMode);
+    var submitBtn=document.getElementById('exam-submit-btn');
+    var banner=document.getElementById('exam-mode-banner');
+    if(_examMode){
+      document.body.classList.add('exam-mode');
+      document.body.classList.remove('exam-revealed');
+      if(submitBtn)submitBtn.classList.add('visible');
+      if(banner)banner.classList.add('visible');
+      _revealed=false;
+      _examAnswers={};
+    } else {
+      document.body.classList.remove('exam-mode','exam-revealed');
+      if(submitBtn)submitBtn.classList.remove('visible');
+      if(banner)banner.classList.remove('visible');
+      _examAnswers={};
+      _revealed=false;
+    }
+  }
+  function _applyShuffle(){
+    _setTrack('shuffle-toggle',_shuffle);
+    // Invalidate rendered cache so next show() re-renders with shuffle
+    if(typeof rendered!=='undefined'){
+      Object.keys(rendered).forEach(function(k){rendered[k]=false;});
+    }
+    // Re-render current visible chapter
+    var active=document.querySelector('.chapter-panel.active');
+    if(active&&active.id&&typeof DB!=='undefined'&&DB[active.id]){
+      var contId=active.id+'-q';
+      var cont=document.getElementById(contId);
+      if(cont)cont.innerHTML='';
+      if(typeof render==='function')render(active.id);
+      if(typeof restoreChapter==='function')restoreChapter(active.id);
+    }
+    _applyBookmarkFilter();
+  }
+  function _applyBookmarkFilter(){
+    _setTrack('bm-filter-toggle',_bmFilter);
+    var notices=document.querySelectorAll('.bm-filter-notice');
+    notices.forEach(function(n){
+      if(_bmFilter)n.classList.add('active'); else n.classList.remove('active');
+    });
+    // Show/hide cards
+    var cards=document.querySelectorAll('.qc');
+    var s=gs();
+    var bookmarks=s.bookmarks||{};
+    cards.forEach(function(card){
+      if(!_bmFilter){
+        card.classList.remove('bm-hidden');
+        return;
+      }
+      var id=card.id; // "ch1_3"
+      var parts=id.match(/^(.+?)_(\d+)$/);
+      if(!parts){card.classList.remove('bm-hidden');return;}
+      var key=parts[1]+'_'+parts[2];
+      if(bookmarks[key])card.classList.remove('bm-hidden');
+      else card.classList.add('bm-hidden');
+    });
+  }
+
+  /* ── Public API ── */
+  function _applyDevice(){
+    document.body.classList.remove('device-mobile','device-tablet','device-laptop');
+    if(_deviceMode==='mobile')document.body.classList.add('device-mobile');
+    else if(_deviceMode==='tablet')document.body.classList.add('device-tablet');
+    else if(_deviceMode==='laptop')document.body.classList.add('device-laptop');
+    var sel=document.getElementById('device-select');
+    if(sel)sel.value=_deviceMode;
+    if(_deviceMode!=='mobile'&&typeof MobileNav!=='undefined')MobileNav.close();
+  }
+
+  function device(val){
+    _deviceMode=val;
+    _applyDevice();
+    _save();
+  }
+
+  function init(){
+    _load();
+    _applyTheme();
+    _applyFontSize();
+    _applyExamMode();
+    _applyDevice();
+    _setTrack('shuffle-toggle',_shuffle);
+    _setTrack('bm-filter-toggle',_bmFilter);
+  }
+
+  function toggleTheme(){
+    _theme=(_theme==='dark')?'light':'dark';
+    _applyTheme();
+    _save();
+  }
+
+  function fontSize(delta){
+    if(delta===0){_fontSize=1.0;}
+    else{_fontSize=Math.min(1.5,Math.max(0.75,Math.round((_fontSize+delta*0.1)*100)/100));}
+    _applyFontSize();
+    _save();
+  }
+
+  function toggleMode(){
+    // Cannot enter exam mode if already revealed; reset first
+    if(_revealed){
+      qConfirm({icon:'🔄',title:'الرجوع لوضع التدريب',msg:'الامتحان اتسلّم واتكشفت الإجابات.\nتحب ترجع لوضع Practice؟',yes:'رجوع',no:'إلغاء'})
+        .then(function(y){if(y)_toggleModeNow();});
+      return;
+    }
+    _toggleModeNow();
+  }
+  function _toggleModeNow(){
+    if(_revealed){
+      _examMode=false;
+      _revealed=false;
+    } else {
+      _examMode=!_examMode;
+    }
+    // When entering exam mode warn user and re-render fresh
+    if(_examMode){
+      // Invalidate rendered cache for fresh render (no locked answers shown mid-exam)
+      _examAnswers={};
+    }
+    _applyExamMode();
+    // Re-render current chapter so hint visibility applies immediately
+    var active=document.querySelector('.chapter-panel.active');
+    if(active&&active.id&&typeof DB!=='undefined'&&DB[active.id]){
+      var cont=document.getElementById(active.id+'-q');
+      if(cont)cont.innerHTML='';
+      if(typeof rendered!=='undefined')rendered[active.id]=false;
+      if(typeof render==='function')render(active.id);
+      if(!_examMode&&typeof restoreChapter==='function')restoreChapter(active.id);
+      _applyBookmarkFilter();
+    }
+    _save();
+  }
+
+  function toggleShuffle(){
+    _shuffle=!_shuffle;
+    _applyShuffle();
+    _save();
+  }
+
+  function toggleBookmarkFilter(){
+    _bmFilter=!_bmFilter;
+    _applyBookmarkFilter();
+    // No need to persist — filter is session-level UI state
+  }
+
+  function isExamMode(){return _examMode;}
+  function isShuffle(){return _shuffle;}
+  function isBmFilter(){return _bmFilter;}
+  function isRevealed(){return _revealed;}
+
+  /* ── Record exam-mode pending selection ── */
+  function recordExamPending(chId, qn, label){
+    if(!_examAnswers[chId])_examAnswers[chId]={};
+    _examAnswers[chId][qn]=label;
+    // Update pending highlight on DOM
+    var card=document.getElementById(chId+'_'+qn);
+    if(!card)return;
+    card.querySelectorAll('.opt').forEach(function(o){
+      o.classList.remove('exam-pending');
+      var l=o.querySelector('.ol')?o.querySelector('.ol').textContent.trim():'';
+      if(l===label)o.classList.add('exam-pending');
+    });
+  }
+
+  /* ── Submit exam — grade all pending answers ── */
+  function submitExam(){
+    if(_revealed)return;
+    var totalQ=0,totalA=0;
+    // Count how many questions exist across DB
+    if(typeof DB!=='undefined'){
+      Object.keys(DB).forEach(function(chId){
+        var d=DB[chId];
+        if(d){totalQ+=(d.mcq?d.mcq.length:0)+(d.trace?d.trace.length:0);}
+      });
+    }
+    // Count pending answers
+    Object.keys(_examAnswers).forEach(function(chId){
+      totalA+=Object.keys(_examAnswers[chId]).length;
+    });
+    var unanswered=totalQ-totalA;
+    var msg='';
+    if(unanswered>0)msg+='⚠ فيه '+unanswered+' سؤال من غير إجابة — هيتحسبوا غلط.\n';
+    msg+='هتتكشف كل الإجابات والشروحات.';
+    qConfirm({icon:'📝',title:'تسليم الامتحان؟',msg:msg,yes:'سلّم الامتحان',no:'كمّل'}).then(function(y){if(y)_submitExamNow();});
+  }
+  function _submitExamNow(){
+    if(_revealed)return;
+    _revealed=true;
+    document.body.classList.add('exam-revealed');
+    document.body.classList.remove('exam-mode');
+    var banner=document.getElementById('exam-mode-banner');
+    if(banner){banner.textContent='✅ EXAM SUBMITTED — All answers revealed';banner.style.background='rgba(var(--green-rgb),.1)';banner.style.borderColor='rgba(var(--green-rgb),.3)';banner.style.color='var(--green)';}
+    var submitBtn=document.getElementById('exam-submit-btn');
+    if(submitBtn){submitBtn.textContent='✅ Submitted';submitBtn.disabled=true;submitBtn.style.opacity='.6';}
+
+    // Now grade each pending answer using the existing grading logic
+    var s=gs();
+    Object.keys(_examAnswers).forEach(function(chId){
+      var chData=typeof DB!=='undefined'?DB[chId]:null;
+      if(!chData)return;
+      Object.keys(_examAnswers[chId]).forEach(function(qnStr){
+        var qn=parseInt(qnStr,10);
+        var label=_examAnswers[chId][qn];
+        var q=(chData.mcq||[]).find(function(x){return x.n===qn;});
+        if(!q&&chData.trace)q=(chData.trace||[]).find(function(x){return x.n===qn;});
+        if(!q)return;
+        var card=document.getElementById(chId+'_'+qn);
+        if(!card)return;
+        var corr=card.dataset.correctShuffled||q.a;
+        var ok=(label===corr);
+        // Remove exam-pending class, apply real colors
+        card.dataset.answered=label;
+        card.querySelectorAll('.opt').forEach(function(o){
+          var l=o.querySelector('.ol')?o.querySelector('.ol').textContent.trim():'';
+          o.classList.remove('exam-pending');
+          o.classList.add('opt-locked');
+          if(l===corr)o.classList.add('opt-correct');
+          else if(l===label&&!ok)o.classList.add('opt-wrong');
+        });
+        if(!card.querySelector('.answer-badge')){
+          var b=document.createElement('span');
+          b.className='answer-badge '+(ok?'correct':'wrong');
+          b.textContent=ok?'✓ Correct!':'✗ Wrong — Ans: '+corr;
+          var qm=card.querySelector('.qm');if(qm)qm.appendChild(b);
+        }
+        // Open hint
+        var aDiv=document.getElementById(card.id+'_ans');
+        if(aDiv){
+          aDiv.classList.add('open');
+          var tbtn=aDiv.previousElementSibling;
+          if(tbtn&&tbtn.classList.contains('tbtn')){
+            tbtn.classList.add('open');
+            var lbl=tbtn.querySelector('.lbl');if(lbl)lbl.textContent='🙈 Hide Answer';
+          }
+        }
+        // Persist to state
+        if(!s[chId])s[chId]={answered:{},score:0};
+        if(!s[chId].answered[qn]){
+          s[chId].answered[qn]={user:origLetter(card,q,label),correct:q.a,ok:ok};
+          if(ok)s[chId].score=(s[chId].score||0)+1;
+        }
+        if(!ok)autoBookmarkWrong(chId,qn);
+        // Review bank
+        if(!s.reviewBank)s.reviewBank=[];
+        if(!ok){
+          var idx=s.reviewBank.findIndex(function(r){return r.chId===chId&&r.qn===qn;});
+          var entry={chId:chId,qn:qn,user:origLetter(card,q,label),correct:q.a,question:q.q,code:q.c||'',options:q.o,hint:q.h};
+          if(idx===-1)s.reviewBank.push(entry); else s.reviewBank[idx]=entry;
+        } else {
+          s.reviewBank=s.reviewBank.filter(function(r){return!(r.chId===chId&&r.qn===qn);});
+        }
+      });
+    });
+    ss(s);
+
+    // Update progress bars and summaries for all chapters that had answers
+    Object.keys(_examAnswers).forEach(function(chId){
+      if(typeof updateProgBar==='function')updateProgBar(chId);
+      if(typeof maybeShowSummary==='function')maybeShowSummary(chId,s);
+    });
+    if(typeof syncReviewCount==='function')syncReviewCount();
+    _save();
+    if(window.QuizPro)QuizPro.onExamSubmitted(Object.keys(_examAnswers));
+  }
+
+  /* ── Shuffle helper ── */
+  function shuffleArray(arr){
+    var a=arr.slice();
+    for(var i=a.length-1;i>0;i--){
+      var j=Math.floor(Math.random()*(i+1));
+      var tmp=a[i];a[i]=a[j];a[j]=tmp;
+    }
+    return a;
+  }
+
+  return {
+    init:init,
+    toggleTheme:toggleTheme,
+    fontSize:fontSize,
+    toggleMode:toggleMode,
+    toggleShuffle:toggleShuffle,
+    toggleBookmarkFilter:toggleBookmarkFilter,
+    submitExam:submitExam,
+    device:device,
+    isExamMode:isExamMode,
+    isShuffle:isShuffle,
+    isBmFilter:isBmFilter,
+    isRevealed:isRevealed,
+    recordExamPending:recordExamPending,
+    applyBookmarkFilter:_applyBookmarkFilter,
+    shuffleArray:shuffleArray
+  };
+})();
+
+/* expose globally */
+window.TopBar = TopBar;
+
+/* ════════════════════════════════════════════
+   MOBILE NAV — hamburger + overlay sidebar
+════════════════════════════════════════════ */
+var MobileNav = (function(){
+  function toggle(){
+    var sb=document.getElementById('sb'),ov=document.getElementById('sb-overlay');
+    if(!sb||!ov)return;
+    var open=sb.classList.toggle('open');
+    if(open)ov.classList.add('open'); else ov.classList.remove('open');
+  }
+  function close(){
+    var sb=document.getElementById('sb'),ov=document.getElementById('sb-overlay');
+    if(sb)sb.classList.remove('open');
+    if(ov)ov.classList.remove('open');
+  }
+  return{toggle:toggle,close:close};
+})();
+window.MobileNav=MobileNav;
+
+/* ════════════════════════════════════════════
+   TIMER
+════════════════════════════════════════════ */
+var _secs=0,_iv=null,_run=false;
+function _timerBtns(t){document.querySelectorAll('.xt-play').forEach(function(b){b.textContent=t;});}
+window.examTimerToggle=function(){
+  if(_run){clearInterval(_iv);_run=false;_timerBtns('▶');}
+  else{_iv=setInterval(function(){_secs++;_tick();},1000);_run=true;_timerBtns('⏸');}
+};
+window.examTimerReset=function(){clearInterval(_iv);_run=false;_secs=0;_timerBtns('▶');_tick();};
+function _tick(){
+  var t=(Math.floor(_secs/60)+'').padStart(2,'0')+':'+((_secs%60)+'').padStart(2,'0');
+  document.querySelectorAll('.xt-display').forEach(function(el){el.textContent=t;});
+}
+
+/* ════════════════════════════════════════════
+   EXTENDED buildQ — adds Bookmark button
+════════════════════════════════════════════ */
+var _origBuildQ = window.buildQ || buildQ;
+
+function buildQExtended(q, ch, isTrace){
+  // Get base HTML from original builder
+  var html = _origBuildQ(q, ch, isTrace);
+  // Inject bookmark button after first .qm close — find </div> after qm opening
+  // We do this by wrapping: insert bm-btn as last child of .qm
+  // Simpler: inject right before closing of the meta row span cluster
+  var bmId=ch+'_'+q.n;
+  var bmBtn='<button class="bm-btn" id="bm_'+bmId+'" onclick="toggleBookmark(\''+ch+'\','+q.n+',this)" title="Bookmark / Flag this question">🔖</button>';
+  // Insert bmBtn at end of .qm div — find the first </div> after <div class="qm">
+  html = html.replace(/(<div class="qm">[\s\S]*?)(<\/div>)/,function(match,p1,p2){
+    return p1+bmBtn+p2;
+  });
+
+  // If shuffle mode: shuffle options in the rendered HTML
+  if(TopBar.isShuffle()){
+    // Rebuild options with shuffled order
+    var optLetters=['A','B','C','D'];
+    var combined=q.o.map(function(txt,i){return{L:optLetters[i],txt:txt};});
+    var shuffled=TopBar.shuffleArray(combined);
+    // Find correct answer text
+    var correctText=q.o[optLetters.indexOf(q.a)];
+    // New correct letter after shuffle
+    var newCorrectL='A';
+    var newOpts=shuffled.map(function(item,i){
+      var L=optLetters[i];
+      if(item.txt===correctText)newCorrectL=L;
+      return '<div class="opt"><span class="ol">'+L+'</span><span>'+esc(item.txt)+'</span></div>';
+    }).join('');
+    // Replace opts section and update answer display
+    html=html.replace(/<div class="opts">[\s\S]*?<\/div>(?=\s*<button class="tbtn")/,
+      '<div class="opts">'+newOpts+'</div>');
+    // Store shuffled correct answer on the card via data attr
+    // We use a marker comment so restoreChapter can still work
+    html=html.replace(/id="(ch[^"]+|lec[^"]+|mid[^"]+)_(\d+)"/,
+      function(m){return m+' data-correct-shuffled="'+newCorrectL+'"';});
+    // Update the displayed answer in the hint
+    var newAnsText=esc(shuffled[optLetters.indexOf(newCorrectL)].txt);
+    html=html.replace(/(<div class="acor">Option )[A-D](: )/,
+      '$1'+newCorrectL+'$2');
+  }
+
+  return html;
+}
+
+/* Override the global buildQ used by render() */
+window.buildQ = buildQExtended;
+
+/* ════════════════════════════════════════════
+   BOOKMARK TOGGLE
+════════════════════════════════════════════ */
+window.toggleBookmark=function(chId,qn,btn){
+  var s=gs();
+  if(!s.bookmarks)s.bookmarks={};
+  var key=chId+'_'+qn;
+  var card=document.getElementById(key);
+  if(s.bookmarks[key]){
+    delete s.bookmarks[key];
+    if(btn)btn.classList.remove('bm-active');
+    if(card)card.classList.remove('bookmarked');
+  } else {
+    s.bookmarks[key]=true;
+    if(btn)btn.classList.add('bm-active');
+    if(card)card.classList.add('bookmarked');
+  }
+  ss(s);
+  // Re-apply filter if active
+  if(TopBar.isBmFilter())TopBar.applyBookmarkFilter();
+};
+
+/* Auto-bookmark any question answered incorrectly.
+   Only ever adds a bookmark — never removes one the user set manually. */
+function autoBookmarkWrong(chId,qn){
+  var key=chId+'_'+qn;
+  var s=gs();
+  if(!s.bookmarks)s.bookmarks={};
+  if(s.bookmarks[key])return; // already bookmarked
+  s.bookmarks[key]=true;
+  ss(s);
+  var card=document.getElementById(key);
+  var btn=document.getElementById('bm_'+key);
+  if(card)card.classList.add('bookmarked');
+  if(btn)btn.classList.add('bm-active');
+}
+
+/* Restore bookmark state on card render */
+function restoreBookmarks(chId){
+  var s=gs();
+  var bookmarks=s.bookmarks||{};
+  Object.keys(bookmarks).forEach(function(key){
+    if(!key.startsWith(chId+'_'))return;
+    var parts=key.match(/^(.+?)_(\d+)$/);
+    if(!parts)return;
+    var card=document.getElementById(key);
+    var btn=document.getElementById('bm_'+key);
+    if(card)card.classList.add('bookmarked');
+    if(btn)btn.classList.add('bm-active');
+  });
+}
+
+/* ════════════════════════════════════════════
+   OPTION CLICK — core grading
+   Handles both Practice Mode and Exam Mode
+════════════════════════════════════════════ */
+/* Map a clicked (possibly shuffled) option letter back to the ORIGINAL letter so saved state is always consistent */
+function origLetter(card,q,label){
+  try{
+    if(!card||!card.dataset.correctShuffled)return label;
+    var opts=card.querySelectorAll('.opt');
+    for(var i=0;i<opts.length;i++){
+      var ol=opts[i].querySelector('.ol');
+      if(ol&&ol.textContent.trim()===label){
+        var sp=opts[i].querySelectorAll('span'),txt=sp[1]?sp[1].textContent.trim():'';
+        var idx=q.o.findIndex(function(o){return String(o).trim()===txt;});
+        if(idx>-1)return 'ABCD'[idx];
+      }
+    }
+  }catch(e){}
+  return label;
+}
+function initClicks(){
+  document.getElementById('main').addEventListener('click',function(e){
+    var opt=e.target.closest('.opt');
+    if(!opt)return;
+    var card=opt.closest('.qc');
+    if(!card)return;
+
+    // In exam mode: allow re-selection before submit
+    if(TopBar.isExamMode()&&!TopBar.isRevealed()){
+      if(card.dataset.answered)return; // already committed (shouldn't happen in exam mode but guard)
+      var m=card.id.match(/^(.+?)_(\d+)$/);
+      if(!m)return;
+      var chId=m[1],qn=parseInt(m[2],10);
+      var label=opt.querySelector('.ol')?opt.querySelector('.ol').textContent.trim():'';
+      if(!label)return;
+      TopBar.recordExamPending(chId,qn,label);
+      return;
+    }
+
+    // Practice mode (or post-reveal): standard grading
+    if(card.dataset.answered)return;
+    var m2=card.id.match(/^(.+?)_(\d+)$/);
+    if(!m2)return;
+    var chId2=m2[1],qn2=parseInt(m2[2],10);
+    var chData=DB[chId2];if(!chData)return;
+    var q=(chData.mcq||[]).find(function(x){return x.n===qn2;});
+    if(!q&&chData.trace)q=(chData.trace||[]).find(function(x){return x.n===qn2;});
+    if(!q)return;
+
+    // Handle shuffle: check data-correct-shuffled if present
+    var correctLabel=card.dataset.correctShuffled||q.a;
+    var label2=opt.querySelector('.ol')?opt.querySelector('.ol').textContent.trim():'';
+    if(!label2)return;
+    var ok=(label2===correctLabel);
+    var uL=origLetter(card,q,label2);
+
+    /* visual feedback */
+    card.dataset.answered=label2;
+    card.querySelectorAll('.opt').forEach(function(o){
+      var l=o.querySelector('.ol')?o.querySelector('.ol').textContent.trim():'';
+      o.classList.add('opt-locked');
+      if(l===correctLabel)o.classList.add('opt-correct');
+      else if(l===label2&&!ok)o.classList.add('opt-wrong');
+    });
+    /* badge */
+    if(!card.querySelector('.answer-badge')){
+      var b=document.createElement('span');
+      b.className='answer-badge '+(ok?'correct':'wrong');
+      b.textContent=ok?'✓ Correct!':'✗ Wrong — Ans: '+correctLabel;
+      var qm=card.querySelector('.qm');if(qm)qm.appendChild(b);
+    }
+    /* auto-reveal hint (practice mode only) */
+    if(!TopBar.isExamMode()){
+      var aDiv=document.getElementById(card.id+'_ans');
+      if(aDiv&&!aDiv.classList.contains('open')){
+        aDiv.classList.add('open');
+        var tbtn=aDiv.previousElementSibling;
+        if(tbtn&&tbtn.classList.contains('tbtn')){
+          tbtn.classList.add('open');
+          var lbl=tbtn.querySelector('.lbl');if(lbl)lbl.textContent='🙈 Hide Answer';
+        }
+      }
+    }
+    /* persist — always save using ORIGINAL correct letter q.a for state consistency */
+    var s=gs();
+    if(!s[chId2])s[chId2]={answered:{},score:0};
+    if(!s[chId2].answered[qn2]){
+      s[chId2].answered[qn2]={user:uL,correct:q.a,ok:ok};
+      if(ok)s[chId2].score=(s[chId2].score||0)+1;
+    }
+    if(!ok)autoBookmarkWrong(chId2,qn2);
+    /* review bank */
+    if(!s.reviewBank)s.reviewBank=[];
+    if(!ok){
+      var idx=s.reviewBank.findIndex(function(r){return r.chId===chId2&&r.qn===qn2;});
+      var entry={chId:chId2,qn:qn2,user:uL,correct:q.a,question:q.q,code:q.c||'',options:q.o,hint:q.h};
+      if(idx===-1)s.reviewBank.push(entry); else s.reviewBank[idx]=entry;
+    } else {
+      s.reviewBank=s.reviewBank.filter(function(r){return!(r.chId===chId2&&r.qn===qn2);});
+    }
+    ss(s);
+    syncReviewCount();
+    updateProgBar(chId2);
+    maybeShowSummary(chId2,s);
+    if(window.QuizPro)QuizPro.onAnswer(chId2,qn2,ok);
+  });
+}
+
+/* ════════════════════════════════════════════
+   PROGRESS BAR
+════════════════════════════════════════════ */
+function chTotal(id){
+  var d=DB[id];
+  return d?((d.mcq?d.mcq.length:0)+(d.trace?d.trace.length:0)):0;
+}
+function chStats(id){
+  var s=gs(),ch=s[id]||{};
+  return{answered:Object.keys(ch.answered||{}).length,score:ch.score||0,total:chTotal(id)};
+}
+function ensureProgBar(chId){
+  var panel=document.getElementById(chId);
+  if(!panel||panel.querySelector('.exam-prog-wrap'))return;
+  var tb=panel.querySelector('.tb');if(!tb)return;
+  var total=chTotal(chId);
+  var div=document.createElement('div');
+  div.className='exam-prog-wrap';
+  div.innerHTML='<div class="exam-prog-row"><span class="exam-prog-label">⚡ Live Score</span>'
+    +'<span class="exam-prog-stats" id="'+chId+'_pstats">0 / '+total+' answered</span></div>'
+    +'<div class="exam-prog-track"><div class="exam-prog-bg" id="'+chId+'_pbg" style="width:0%"></div>'
+    +'<div class="exam-prog-bar" id="'+chId+'_pbar" style="width:0%"></div></div>';
+  tb.insertAdjacentElement('afterend',div);
+}
+function updateProgBar(chId){
+  var st=chStats(chId);if(!st.total)return;
+  var pctAll=(st.answered/st.total)*100;
+  var pctOk=(st.score/st.total)*100;
+  var acc=st.answered>0?Math.round((st.score/st.answered)*100):0;
+  var bg=document.getElementById(chId+'_pbg');
+  var bar=document.getElementById(chId+'_pbar');
+  var stats=document.getElementById(chId+'_pstats');
+  if(bg)bg.style.width=pctAll+'%';
+  if(bar)bar.style.width=pctOk+'%';
+  if(stats)stats.textContent=st.answered+'/'+st.total+' answered · '+st.score+' correct · Accuracy: '+acc+'%';
+}
+
+/* ════════════════════════════════════════════
+   COMPLETION SUMMARY
+════════════════════════════════════════════ */
+function maybeShowSummary(chId,s){
+  var st=chStats(chId);
+  if(st.answered<st.total||st.total===0)return;
+  var panel=document.getElementById(chId);
+  if(!panel||panel.querySelector('.exam-sum-card'))return;
+  var pct=Math.round((st.score/st.total)*100);
+  var grade,gColor;
+  if(pct>=90){grade='🏆 Excellent!';gColor='var(--green)';}
+  else if(pct>=75){grade='👍 Good Job!';gColor='var(--accent)';}
+  else if(pct>=60){grade='📚 Keep Practicing';gColor='var(--accent3)';}
+  else{grade='💪 Needs More Review';gColor='var(--wrong)';}
+  var card=document.createElement('div');
+  card.className='exam-sum-card';
+  card.innerHTML='<div class="sum-icon">🎯</div>'
+    +'<h3 class="sum-title">Chapter Complete!</h3>'
+    +'<div class="sum-score">'+st.score+'<span> / '+st.total+'</span></div>'
+    +'<div class="sum-pct" style="color:'+gColor+'">'+pct+'% — '+grade+'</div>'
+    +'<div class="sum-actions">'
+    +'<button class="btn btn-p" onclick="examRetry(\''+chId+'\')">🔁 Retry Chapter</button>'
+    +'<button class="btn btn-t" onclick="show(\'reviewBank\')">⚠️ View Mistakes</button>'
+    +'<button class="btn btn-g" onclick="QuizPro.openReport(\''+chId+'\')">📊 Full Report</button>'
+    +'</div>';
+  var qCont=document.getElementById(chId+'-q');
+  if(qCont)qCont.insertAdjacentElement('afterend',card);
+}
+
+/* ════════════════════════════════════════════
+   RETRY CHAPTER
+════════════════════════════════════════════ */
+window.examRetry=function(chId){
+  qConfirm({icon:'🔁',title:'إعادة الشابتر؟',msg:'نتيجتك وإجاباتك الحالية في الشابتر ده هتتمسح.',yes:'إعادة',no:'إلغاء',danger:true})
+    .then(function(y){if(y)_examRetryNow(chId);});
+};
+function _examRetryNow(chId){
+  if(window.QuizPro)QuizPro.onRetry(chId);
+  var s=gs();delete s[chId];ss(s);
+  var panel=document.getElementById(chId);
+  if(panel){
+    var sc=panel.querySelector('.exam-sum-card');if(sc)sc.remove();
+    var pw=panel.querySelector('.exam-prog-wrap');if(pw)pw.remove();
+  }
+  var cont=document.getElementById(chId+'-q');
+  var d=DB[chId];
+  if(cont&&d){
+    cont.innerHTML='';
+    if(typeof rendered!=='undefined')rendered[chId]=false;
+  }
+  if(typeof render==='function')render(chId);
+  ensureProgBar(chId);
+  syncReviewCount();
+  restoreBookmarks(chId);
+  if(TopBar.isBmFilter())TopBar.applyBookmarkFilter();
+  scrollMainTop();
+};
+
+/* ════════════════════════════════════════════
+   REVIEW BANK
+════════════════════════════════════════════ */
+function syncReviewCount(){
+  var n=(gs().reviewBank||[]).length;
+  ['review-bank-count','rb-total-count'].forEach(function(id){
+    var el=document.getElementById(id);if(el)el.textContent=n;
+  });
+}
+function _x(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function renderReviewBank(){
+  var cont=document.getElementById('review-bank-q');if(!cont)return;
+  var bank=gs().reviewBank||[];
+  syncReviewCount();
+  if(!bank.length){
+    cont.innerHTML='<div class="rb-empty"><div class="rb-icon">✅</div>'
+      +'<h3>No mistakes yet!</h3>'
+      +'<p>Answer questions in any chapter — wrong answers appear here for review.</p></div>';
+    return;
+  }
+  cont.innerHTML=bank.map(function(r,i){
+    var opts=r.options.map(function(o,j){
+      var L='ABCD'[j];
+      var cl=L===r.correct?'opt-correct':L===r.user?'opt-wrong':'';
+      return '<div class="opt '+cl+'"><span class="ol">'+L+'</span><span>'+_x(o)+'</span></div>';
+    }).join('');
+    var code=r.code?'<pre class="qcode">'+_x(r.code)+'</pre>':'';
+    var _b=document.querySelector('.cb[onclick="show(\''+r.chId+'\')"] .cl');
+    var chLabel=_b?_b.textContent.trim():r.chId;
+    return '<div class="qc" style="border-color:rgba(var(--accent3-rgb),.28)">'
+      +'<div class="qm"><span class="qn">#'+(i+1)+'</span>'
+      +'<span class="qd medium">'+_x(chLabel)+' · Q'+r.qn+'</span>'
+      +'<span class="answer-badge wrong">Your: '+r.user+' · Correct: '+r.correct+'</span></div>'
+      +'<div class="qtxt">'+r.question+'</div>'+code
+      +'<div class="opts">'+opts+'</div>'
+      +'<div class="abox" style="margin-top:10px">'
+      +'<div class="albl">💡 Why <b>'+r.correct+'</b> is correct</div>'
+      +'<div class="ahint">'+r.hint+'</div>'+(typeof guideLinksRow==='function'?guideLinksRow(r.chId,r.qn,'rb'):'')+'</div></div>';
+  }).join('');
+}
+window.clearReviewBank=function(){
+  qConfirm({icon:'🧹',title:'مسح الـ Review Bank؟',msg:'كل الأسئلة الغلط المحفوظة هتتشال من القايمة.',yes:'امسح',no:'إلغاء',danger:true})
+    .then(function(y){if(y)_clearReviewBankNow();});
+};
+function _clearReviewBankNow(){
+  var s=gs();s.reviewBank=[];ss(s);
+  syncReviewCount();renderReviewBank();
+};
+
+/* ════════════════════════════════════════════
+   RESET ALL PROGRESS
+════════════════════════════════════════════ */
+window.resetAllProgress=function(){
+  qConfirm({icon:'⚠️',title:'مسح كل التقدم؟',msg:'كل النتائج والإجابات والـ Review Bank وسجل التقارير هتتمسح.\nمش هينفع ترجّعهم.',yes:'امسح كل حاجة',no:'إلغاء',danger:true})
+    .then(function(y){if(y)_resetAllNow();});
+};
+function _resetAllNow(){
+  clearState();
+  if(window.QuizPro)QuizPro.onReset();
+  Object.keys(DB).forEach(function(ch){
+    var cont=document.getElementById(ch+'-q');
+    var d=DB[ch];
+    if(!cont||!d||!cont.innerHTML.trim())return;
+    cont.innerHTML='';
+    if(typeof rendered!=='undefined')rendered[ch]=false;
+    var panel=document.getElementById(ch);
+    if(panel){
+      var sc=panel.querySelector('.exam-sum-card');if(sc)sc.remove();
+      var pw=panel.querySelector('.exam-prog-wrap');if(pw)pw.remove();
+    }
+    render(ch);
+    ensureProgBar(ch);
+  });
+  syncReviewCount();
+  window.show('welcome');
+};
+
+/* ════════════════════════════════════════════
+   RESTORE STATE ON REVISIT / REFRESH
+════════════════════════════════════════════ */
+function restoreChapter(chId){
+  var s=gs(),ch=s[chId];
+  if(!ch||!ch.answered)return;
+  Object.keys(ch.answered).forEach(function(qn){
+    var data=ch.answered[qn];
+    var card=document.getElementById(chId+'_'+qn);
+    if(!card||card.dataset.answered)return;
+    card.dataset.answered=data.user;
+    card.querySelectorAll('.opt').forEach(function(o){
+      var l=o.querySelector('.ol')?o.querySelector('.ol').textContent.trim():'';
+      o.classList.add('opt-locked');
+      if(l===data.correct)o.classList.add('opt-correct');
+      else if(l===data.user&&!data.ok)o.classList.add('opt-wrong');
+    });
+    if(!card.querySelector('.answer-badge')){
+      var b=document.createElement('span');
+      b.className='answer-badge '+(data.ok?'correct':'wrong');
+      b.textContent=data.ok?'✓ Correct!':'✗ Wrong — Ans: '+data.correct;
+      var qm=card.querySelector('.qm');if(qm)qm.appendChild(b);
+    }
+  });
+  updateProgBar(chId);
+  maybeShowSummary(chId,s);
+  restoreBookmarks(chId);
+}
+
+/* ════════════════════════════════════════════
+   BOOKMARK FILTER NOTICE injection
+════════════════════════════════════════════ */
+function ensureBookmarkNotice(chId){
+  var panel=document.getElementById(chId);
+  if(!panel||panel.querySelector('.bm-filter-notice'))return;
+  var tb=panel.querySelector('.tb');
+  if(!tb)return;
+  var notice=document.createElement('div');
+  notice.className='bm-filter-notice';
+  notice.innerHTML='🔖 Bookmark Filter ON — showing only flagged questions. '
+    +'<span style="cursor:pointer;text-decoration:underline;" onclick="TopBar.toggleBookmarkFilter()">Turn off</span>';
+  tb.insertAdjacentElement('afterend',notice);
+}
+
+/* ════════════════════════════════════════════
+   HOOK INTO render() AND show()
+════════════════════════════════════════════ */
+var _origRender=window.render;
+window.render=function(ch){
+  if(!DB[ch])return;
+  _origRender(ch);
+  ensureProgBar(ch);
+  ensureBookmarkNotice(ch);
+  restoreChapter(ch);
+  if(TopBar.isBmFilter())TopBar.applyBookmarkFilter();
+};
+
+var _origShow=window.show;
+window.show=function(id){
+  _origShow(id);
+  if(id==='reviewBank'){
+    document.querySelectorAll('.cb').forEach(function(b){b.classList.remove('active');});
+    var rb=document.getElementById('review-bank-btn');if(rb)rb.classList.add('active');
+    renderReviewBank();
+  }
+  if(typeof MobileNav!=='undefined')MobileNav.close();
+};
+
+/* ════════════════════════════════════════════
+   INIT
+════════════════════════════════════════════ */
+function init(){
+  TopBar.init();
+  initClicks();
+  syncReviewCount();
+  document.querySelectorAll('.chapter-panel.active').forEach(function(p){
+    if(DB[p.id]){ensureProgBar(p.id);restoreChapter(p.id);}
+  });
+}
+window.QuizEngine={gs:gs,ss:ss,chStats:chStats,chTotal:chTotal,syncReviewCount:syncReviewCount,SKEY:SKEY};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);
+else init();
+
+})();
+</script>
+</main>
+</div><!-- #layout -->
+
+</div><!-- #app-frame -->
+</div><!-- #device-stage -->
+
+<style>
+/* ══════════════════════════════════════════════════════════════
+   QUIZ PRO — Chapter celebration + performance report + options
+   Uses ONLY design tokens (no colour literals) so both themes work.
+   ══════════════════════════════════════════════════════════════ */
+#qp-confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:100010;display:none;}
+.qp-overlay{position:fixed;inset:0;z-index:100001;display:none;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:14px;}
+.qp-overlay.open{display:flex;animation:qpFade .28s ease;}
+@keyframes qpFade{from{opacity:0}to{opacity:1}}
+@keyframes qpPop{0%{transform:translateY(24px) scale(.96);opacity:0}100%{transform:none;opacity:1}}
+@keyframes qpBounce{0%{transform:scale(.2) rotate(-12deg);opacity:0}55%{transform:scale(1.18) rotate(6deg);opacity:1}100%{transform:scale(1) rotate(0)}}
+@keyframes qpGlow{0%,100%{text-shadow:0 0 0 rgba(var(--accent-rgb),0)}50%{text-shadow:0 0 22px rgba(var(--accent-rgb),.55)}}
+
+.qp-card{position:relative;width:min(780px,100%);max-height:calc(var(--app-h) - 28px);overflow-y:auto;
+  background:var(--card);border:1px solid rgba(var(--accent-rgb),.45);border-radius:20px;
+  box-shadow:0 28px 90px rgba(0,0,0,.65),0 0 70px rgba(var(--accent-rgb),.12);
+  animation:qpPop .45s cubic-bezier(.2,.9,.3,1.1);overscroll-behavior:contain;}
+.qp-hero{position:relative;text-align:center;padding:30px 22px 20px;
+  background:radial-gradient(ellipse at 50% 0%,rgba(var(--accent-rgb),.22),transparent 68%);
+  border-bottom:1px solid var(--border);}
+.qp-x{position:absolute;top:10px;right:12px;width:32px;height:32px;border-radius:50%;border:1px solid var(--border);
+  background:var(--card);color:var(--muted);cursor:pointer;font-size:.95rem;line-height:1;z-index:2;}
+.qp-x:hover{border-color:var(--accent);color:var(--accent);}
+.qp-medal{font-size:3.6rem;line-height:1;display:inline-block;animation:qpBounce .8s cubic-bezier(.2,.9,.3,1.2) .15s both;}
+.qp-headline{margin-top:8px;font-size:1.9rem;font-weight:900;line-height:1.3;
+  background:linear-gradient(135deg,var(--accent-hi),var(--accent),var(--accent3));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:qpGlow 2.6s ease-in-out infinite;}
+.qp-sub{margin-top:4px;font-size:.82rem;color:var(--muted);line-height:1.6;}
+.qp-sub b{color:var(--text);}
+.qp-ringwrap{position:relative;width:168px;height:168px;margin:18px auto 6px;}
+.qp-ring{width:100%;height:100%;transform:rotate(-90deg);}
+.qp-ring .trk{fill:none;stroke:var(--border);stroke-width:11;}
+.qp-ring .bar{fill:none;stroke-width:11;stroke-linecap:round;stroke-dasharray:439.8;stroke-dashoffset:439.8;
+  transition:stroke-dashoffset 1.5s cubic-bezier(.2,.8,.2,1) .25s;}
+.qp-ringtxt{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.qp-pct{font-size:2.6rem;font-weight:900;color:var(--text);line-height:1;}
+.qp-pct small{font-size:1.1rem;color:var(--muted);}
+.qp-frac{font-size:.8rem;color:var(--muted);margin-top:4px;font-weight:700;}
+.qp-chips{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-top:12px;}
+.qp-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:14px;font-size:.72rem;font-weight:800;
+  background:rgba(var(--accent-rgb),.12);color:var(--accent);border:1px solid rgba(var(--accent-rgb),.3);}
+.qp-chip.ok{background:rgba(var(--green-rgb),.12);color:var(--green);border-color:rgba(var(--green-rgb),.3);}
+.qp-chip.bad{background:rgba(var(--wrong-rgb),.12);color:var(--wrong);border-color:rgba(var(--wrong-rgb),.3);}
+.qp-chip.warm{background:rgba(var(--accent3-rgb),.12);color:var(--accent3);border-color:rgba(var(--accent3-rgb),.3);}
+.qp-chip.red{background:rgba(var(--accent2-rgb),.14);color:var(--accent2-text);border-color:rgba(var(--accent2-rgb),.35);}
+.qp-body{padding:18px 22px 22px;}
+.qp-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:6px;}
+.qp-tile{background:var(--hint-bg);border:1px solid var(--border);border-radius:12px;padding:11px 8px;text-align:center;}
+.qp-tile .v{font-size:1.45rem;font-weight:900;line-height:1.1;color:var(--text);}
+.qp-tile .l{font-size:.66rem;color:var(--muted);margin-top:3px;font-weight:700;}
+.qp-tile.g .v{color:var(--green);} .qp-tile.r .v{color:var(--wrong);} .qp-tile.y .v{color:var(--accent);}
+.qp-note{font-size:.68rem;color:var(--muted);text-align:center;margin:4px 0 0;line-height:1.6;}
+.qp-sec{font-size:.76rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin:20px 0 10px;
+  display:flex;align-items:center;gap:8px;}
+.qp-sec::after{content:'';flex:1;height:1px;background:var(--border);}
+.qp-bars{display:grid;gap:8px;}
+.qp-bar{display:grid;grid-template-columns:104px 1fr 78px;align-items:center;gap:9px;font-size:.74rem;}
+.qp-bar .nm{font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.qp-bar .tr{height:9px;background:var(--border);border-radius:5px;overflow:hidden;}
+.qp-bar .fl{height:100%;width:0;border-radius:5px;background:var(--green);transition:width 1.1s cubic-bezier(.2,.8,.2,1) .35s;}
+.qp-bar .fl.mid{background:var(--accent);} .qp-bar .fl.low{background:var(--wrong);}
+.qp-bar .nv{text-align:right;color:var(--muted);font-weight:700;white-space:nowrap;}
+.qp-advice{display:grid;gap:8px;}
+.qp-adv{display:flex;gap:10px;align-items:flex-start;background:var(--hint-bg);border:1px solid var(--border);
+  border-inline-start:3px solid var(--accent);border-radius:10px;padding:10px 12px;font-size:.82rem;line-height:1.75;color:var(--text);}
+.qp-adv.good{border-inline-start-color:var(--green);} .qp-adv.bad{border-inline-start-color:var(--wrong);} .qp-adv.warn{border-inline-start-color:var(--accent3);}
+.qp-adv .ic{font-size:1.15rem;flex-shrink:0;line-height:1.5;}
+.qp-adv b{color:var(--accent-hi);}
+.qp-concepts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.qp-mis{border:1px solid var(--border);border-radius:10px;margin-bottom:7px;background:var(--hint-bg);overflow:hidden;}
+.qp-mis summary{cursor:pointer;list-style:none;padding:10px 12px;font-size:.78rem;display:flex;align-items:center;gap:8px;color:var(--text);}
+.qp-mis summary::-webkit-details-marker{display:none;}
+.qp-mis summary::after{content:'▾';margin-inline-start:auto;color:var(--muted);transition:transform .2s;}
+.qp-mis[open] summary::after{transform:rotate(180deg);}
+.qp-mis summary .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.qp-mis .mb{padding:4px 14px 14px;font-size:.8rem;line-height:1.75;border-top:1px solid var(--border);}
+.qp-mis .qq{margin:8px 0;color:var(--text);}
+.qp-ans{display:grid;gap:6px;margin:8px 0;}
+.qp-ans div{padding:7px 10px;border-radius:8px;font-size:.78rem;}
+.qp-ans .you{background:rgba(var(--wrong-rgb),.12);border:1px solid rgba(var(--wrong-rgb),.35);}
+.qp-ans .cor{background:rgba(var(--green-rgb),.12);border:1px solid rgba(var(--green-rgb),.35);}
+.qp-ans b{margin-inline-end:6px;}
+.qp-why{color:var(--hint-text);font-size:.78rem;}
+.qp-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:20px;}
+.qp-actions .btn{padding:9px 16px;font-size:.78rem;}
+.qp-demo{font-size:.7rem;color:var(--accent3);text-align:center;font-weight:800;margin-top:6px;}
+
+/* drill-mistakes mode */
+.qp-drill .qc.qp-done{display:none;}
+.qp-drill-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px;padding:10px 14px;border-radius:10px;
+  background:rgba(var(--accent2-rgb),.12);border:1px solid rgba(var(--accent2-rgb),.35);font-size:.78rem;font-weight:700;color:var(--accent2-text);}
+.qp-drill-banner button{margin-inline-start:auto;}
+
+/* toasts */
+#qp-toasts{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);z-index:100000;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;}
+.qp-toast{background:var(--card);color:var(--text);border:1px solid rgba(var(--accent-rgb),.5);border-radius:22px;padding:8px 18px;font-size:.82rem;font-weight:800;
+  box-shadow:0 8px 28px rgba(0,0,0,.45);animation:qpToast 2.6s ease forwards;white-space:nowrap;}
+.qp-toast.bad{border-color:rgba(var(--wrong-rgb),.5);}
+@keyframes qpToast{0%{opacity:0;transform:translateY(14px) scale(.9)}12%{opacity:1;transform:none}82%{opacity:1}100%{opacity:0;transform:translateY(-8px)}}
+
+/* options */
+.qp-opt-card{width:min(520px,100%);max-height:calc(var(--app-h) - 28px);overflow-y:auto;background:var(--card);border:1px solid var(--border);border-radius:18px;
+  padding:22px 20px 18px;box-shadow:0 24px 70px rgba(0,0,0,.6);animation:qpPop .3s ease;}
+.qp-opt-card h3{font-size:1.1rem;font-weight:800;margin-bottom:2px;background:linear-gradient(135deg,var(--accent-hi),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.qp-opt-card > p{font-size:.74rem;color:var(--muted);margin-bottom:14px;}
+.qp-row{display:flex;align-items:center;gap:12px;padding:10px 2px;border-bottom:1px solid var(--border);}
+.qp-row .tx{flex:1;min-width:0;} .qp-row .tx b{display:block;font-size:.82rem;color:var(--text);} .qp-row .tx span{font-size:.68rem;color:var(--muted);}
+.qp-seg{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px;}
+.qp-seg button{flex:1;min-width:110px;padding:9px 8px;border-radius:9px;border:1px solid var(--border);background:var(--hint-bg);color:var(--muted);font-size:.74rem;font-weight:800;cursor:pointer;}
+.qp-seg button:hover{border-color:var(--accent);color:var(--accent);}
+.qp-seg button.on{background:rgba(var(--accent-rgb),.16);border-color:var(--accent);color:var(--accent);}
+.qp-mdesc{font-size:.72rem;color:var(--muted);line-height:1.7;margin:4px 0 6px;}
+.qp-sel{background:var(--hint-bg);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:5px 8px;font-size:.74rem;font-weight:700;}
+
+/* overall performance panel */
+.qp-ov-hero{display:flex;gap:22px;align-items:center;flex-wrap:wrap;background:linear-gradient(135deg,rgba(var(--accent-rgb),.10),rgba(var(--accent2-rgb),.08));
+  border:1px solid var(--border);border-radius:14px;padding:20px 22px;margin-bottom:18px;}
+.qp-ov-hero .qp-ringwrap{margin:0;width:140px;height:140px;flex-shrink:0;}
+.qp-ov-hero .txt{flex:1;min-width:220px;}
+.qp-ov-hero h3{font-size:1.15rem;font-weight:800;color:var(--accent-hi);margin-bottom:6px;}
+.qp-ov-hero p{font-size:.8rem;color:var(--muted);line-height:1.7;}
+.qp-chrow{display:grid;grid-template-columns:minmax(120px,1.1fr) 2fr auto;gap:12px;align-items:center;background:var(--card);border:1px solid var(--border);
+  border-radius:10px;padding:10px 14px;margin-bottom:8px;font-size:.78rem;}
+.qp-chrow .nm{font-weight:800;color:var(--text);} .qp-chrow .nm small{display:block;color:var(--muted);font-weight:600;font-size:.66rem;margin-top:2px;}
+.qp-chrow .dbl{position:relative;height:10px;background:var(--border);border-radius:5px;overflow:hidden;}
+.qp-chrow .dbl i{position:absolute;top:0;left:0;height:100%;border-radius:5px;} .qp-chrow .dbl .a{background:rgba(var(--accent-rgb),.28);} .qp-chrow .dbl .c{background:var(--green);}
+.qp-chrow .go{background:transparent;border:1px solid var(--border);color:var(--accent);border-radius:6px;padding:4px 10px;font-weight:800;cursor:pointer;font-size:.7rem;}
+.qp-chrow .go:hover{background:var(--accent);color:var(--on-accent);}
+.qp-empty{text-align:center;padding:40px 16px;color:var(--muted);font-size:.85rem;line-height:1.8;}
+
+@media(max-width:640px){
+  .qp-overlay{padding:0;align-items:stretch;}
+  .qp-card{width:100%;max-height:var(--app-h);border-radius:0;border-left:0;border-right:0;}
+  .qp-tiles{grid-template-columns:repeat(2,1fr);}
+  .qp-bar{grid-template-columns:84px 1fr 66px;}
+  .qp-headline{font-size:1.55rem;}
+  .qp-chrow{grid-template-columns:1fr auto;} .qp-chrow .dbl{grid-column:1 / -1;order:3;}
+  .qp-body{padding:14px 14px 20px;}
+}
+@media (prefers-reduced-motion:reduce){.qp-card,.qp-medal,.qp-headline,.qp-toast{animation:none!important;}}
+
+/* themed confirm dialog (replaces the black native confirm()) */
+.qm-overlay{position:fixed;inset:0;z-index:100050;display:flex;align-items:center;justify-content:center;padding:16px;
+  background:rgba(0,0,0,.66);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:qpFade .18s ease;}
+.qm-box{width:min(420px,100%);background:var(--card);border:1px solid rgba(var(--accent-rgb),.45);border-radius:16px;padding:22px 22px 18px;
+  box-shadow:0 24px 70px rgba(0,0,0,.6),0 0 40px rgba(var(--accent-rgb),.10);animation:qpPop .25s cubic-bezier(.2,.9,.3,1.1);}
+.qm-box.danger{border-color:rgba(var(--wrong-rgb),.55);box-shadow:0 24px 70px rgba(0,0,0,.6),0 0 40px rgba(var(--wrong-rgb),.10);}
+.qm-icon{font-size:2rem;line-height:1;}
+.qm-title{margin:8px 0 6px;font-size:1.08rem;font-weight:800;color:var(--accent-hi);}
+.qm-box.danger .qm-title{color:var(--wrong);}
+.qm-msg{font-size:.86rem;line-height:1.85;color:var(--text);white-space:pre-line;}
+.qm-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap;}
+.qm-btns .btn{padding:9px 18px;font-size:.8rem;}
+.btn-danger{background:var(--wrong);color:var(--on-wrong);}
+.btn-danger:hover{filter:brightness(1.12);transform:translateY(-1px);}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+/* native dropdown lists / scrollbars follow the active theme instead of the OS default */
+select,option{background:var(--card);color:var(--text);}
+option:checked{background:rgba(var(--accent-rgb),.25);}
+
+</style>
+<script>
+/* ══════════════════════════════════════════════════════════════
+   QUIZ PRO ENGINE
+   - marking algorithm (standard / weighted / negative)
+   - chapter-completion celebration + performance report
+   - overall performance report, streak toasts, sounds, haptics
+   - settings panel. Talks to the quiz engine via window.QuizEngine
+   and the hooks (onAnswer / onExamSubmitted / onRetry / onReset).
+   ══════════════════════════════════════════════════════════════ */
+(function(){
+'use strict';
+var DEFAULTS={confetti:true,sound:false,haptic:true,autoReport:true,streakToast:true,marking:'standard',negPenalty:0.25};
+var WEIGHT={easy:1,medium:2,hard:3};
+var TYPE_TIP={
+  Trace:'اتتبع الكود سطر بسطر على ورقة وسجّل قيم المتغيرات بعد كل خطوة.',
+  Output:'اتوقع الـ output بنفسك قبل ما تبص على الاختيارات.',
+  Syntax:'اكتب الـ syntax بإيدك كذا مرة لحد ما يتثبّت.',
+  Conceptual:'ارجع للتعريفات وافهم «ليه» مش بس «إيه».',
+  Coding:'جرّب تكتب الحل من الصفر من غير ما تبص على الإجابة.'
+};
+var TIERS=[
+  {min:100,icon:'👑',head:'أسطورة! ولا غلطة',sub:'أداء مثالي — كده إنت جاهز للامتحان.'},
+  {min:90, icon:'🔥',head:'اشطر شطور!',sub:'مستواك عالي جدًا، كمّل على نفس الوتيرة.'},
+  {min:75, icon:'💪',head:'جامد! كمّل كده',sub:'أداء قوي، فاضل شوية تفاصيل وتبقى مضمون.'},
+  {min:60, icon:'📚',head:'كويس… بس لسه فيه شغل',sub:'الأساس موجود، محتاج مراجعة على النقط اللي وقعتك.'},
+  {min:40, icon:'⚠️',head:'محتاج مراجعة قوية',sub:'متقلقش — راجع الغلطات وارجع تاني، هتفرق معاك.'},
+  {min:0,  icon:'💡',head:'البداية دايمًا صعبة',sub:'خد الشرح من الأول بتركيز، وبعدين جرّب الشابتر تاني.'}
+];
+var E=null, store=null, settings=null, lastTs={}, streak=0, cfRaf=0, audioCtx=null, curChId=null, curRep=null;
+
+/* ─────────── helpers ─────────── */
+function getDB(){return (typeof DB!=='undefined')?DB:null;}
+function eng(){return E||(E=window.QuizEngine||null);}
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function strip(h){var d=document.createElement('div');d.innerHTML=String(h==null?'':h);return (d.textContent||'').replace(/\s+/g,' ').trim();}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function r1(v){return Math.round(v*10)/10;}
+function proKey(){return (eng()&&eng().SKEY?eng().SKEY:'quiz')+'_pro';}
+function loadStore(){
+  if(store)return store;
+  try{store=JSON.parse(localStorage.getItem(proKey())||'{}');}catch(e){store={};}
+  store.settings=store.settings||{}; store.history=store.history||{};
+  settings={}; Object.keys(DEFAULTS).forEach(function(k){settings[k]=(k in store.settings)?store.settings[k]:DEFAULTS[k];});
+  return store;
+}
+function saveStore(){try{store.settings=settings;localStorage.setItem(proKey(),JSON.stringify(store));}catch(e){}}
+function S(){loadStore();return settings;}
+function allQs(chId){var d=getDB()&&getDB()[chId];return d?((d.mcq||[]).concat(d.trace||[])):[];}
+function chState(chId){var s=eng()?eng().gs():{};return s[chId]||{answered:{}};}
+function chName(chId){
+  var b=document.querySelector('.cb[onclick="show(\''+chId+'\')"] .cl');
+  if(b&&b.textContent.trim())return b.textContent.trim();
+  var h=document.querySelector('#'+chId+' .ch-ttl h2');return h?h.textContent.trim():chId;
+}
+function chOrder(){
+  var ids=[];document.querySelectorAll('.cb[onclick]').forEach(function(b){
+    var m=(b.getAttribute('onclick')||'').match(/^show\('([^']+)'\)$/);if(m&&getDB()&&getDB()[m[1]]&&ids.indexOf(m[1])<0)ids.push(m[1]);});
+  return ids;
+}
+function conceptsOf(q){
+  if(q.k){return (Array.isArray(q.k)?q.k:[q.k]).map(function(x){return String(x).trim();}).filter(Boolean).slice(0,2);}
+  var out=[],re=/<code>([^<]{2,24})<\/code>/g,m,src=String(q.h||'');
+  while((m=re.exec(src))&&out.length<2){var t=m[1].trim();if(t&&out.indexOf(t)<0)out.push(t);}
+  return out;
+}
+function optText(q,L){var i='ABCD'.indexOf(L);return i>-1&&q.o&&q.o[i]!=null?q.o[i]:'';}
+function fmtTime(ms){var s=Math.round(ms/1000);if(s<60)return s+'s';var m=Math.floor(s/60);return m+'m '+(s%60)+'s';}
+function cssv(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+
+/* ─────────── MARKING ALGORITHM ─────────── */
+function markPoints(R,mode,pen){
+  var earned=0,max=0;
+  R.items.forEach(function(it){
+    var w=(mode==='weighted')?(WEIGHT[it.q.d]||2):1;
+    max+=w;
+    if(it.state==='ok')earned+=w;
+    else if(it.state==='wrong'&&mode==='negative')earned-=pen;
+  });
+  return {earned:r1(Math.max(0,earned)),raw:r1(earned),max:max,pct:max?clamp(earned/max*100,0,100):0};
+}
+function computeReport(chId,opts){
+  opts=opts||{};
+  var qs=allQs(chId),ch=chState(chId),ans=opts.ans||ch.answered||{},pro=opts.pro||ch.pro||{},fin=!!opts.finalize;
+  var R={chId:chId,name:chName(chId),total:qs.length,correct:0,wrong:0,skipped:0,items:[],byD:{},byT:{},concepts:{},wrongList:[],msMap:{},round:pro.round||1};
+  (pro.log||[]).forEach(function(e){R.msMap[e.n]=e.ms;});
+  qs.forEach(function(q){
+    var a=ans[q.n],d=q.d||'medium',t=q.t||'General';
+    var D=R.byD[d]=R.byD[d]||{total:0,ok:0,wrong:0},T=R.byT[t]=R.byT[t]||{total:0,ok:0,wrong:0};
+    D.total++;T.total++;
+    var cs=conceptsOf(q),state='skip';
+    cs.forEach(function(c){R.concepts[c]=R.concepts[c]||{seen:0,miss:0};R.concepts[c].seen++;});
+    if(a&&a.ok){state='ok';R.correct++;D.ok++;T.ok++;}
+    else if(a){state='wrong';R.wrong++;D.wrong++;T.wrong++;cs.forEach(function(c){R.concepts[c].miss++;});}
+    else if(fin){state='skipwrong';R.skipped++;R.wrong++;D.wrong++;T.wrong++;cs.forEach(function(c){R.concepts[c].miss++;});}
+    else{R.skipped++;}
+    R.items.push({q:q,state:state==='skipwrong'?'skip':state,a:a});
+    if(state==='wrong'||state==='skipwrong'){
+      R.wrongList.push({n:q.n,d:d,t:t,q:q,skipped:state==='skipwrong',
+        userL:a?a.user:'',userT:a?optText(q,a.user):'',corrL:q.a,corrT:optText(q,q.a),ms:R.msMap[q.n]});
+    }
+  });
+  R.answered=R.correct+R.wrong-(fin?R.skipped:0);
+  var denom=(R.skipped===0||fin)?R.total:(R.correct+R.wrong);
+  R.acc=denom?Math.round(R.correct/denom*100):0;
+  R.mode=settings?settings.marking:'standard';
+  R.pen=settings?settings.negPenalty:0.25;
+  R.points=markPoints(R,R.mode,R.pen);
+  // streak
+  var seq=(pro.log&&pro.log.length)?pro.log.map(function(e){return e.ok;}):R.items.map(function(it){return it.state==='ok';});
+  var cur=0,best=0;seq.forEach(function(ok){cur=ok?cur+1:0;if(cur>best)best=cur;});R.bestStreak=best;
+  // time
+  var logs=pro.log||[];R.timed=logs.length;
+  R.totalMs=logs.reduce(function(s,e){return s+e.ms;},0);R.avgMs=logs.length?R.totalMs/logs.length:0;
+  R.fastWrong=R.wrongList.filter(function(w){return w.ms!=null&&w.ms<3000;}).length;
+  R.slowest=logs.slice().sort(function(a,b){return b.ms-a.ms;}).slice(0,3);
+  // history compare
+  var hist=(loadStore().history[chId]||[]);
+  R.prev=hist.length?hist[hist.length-1]:null;
+  R.bestPrev=hist.reduce(function(m,h){return Math.max(m,h.acc);},-1);
+  R.fixed=null;
+  if(pro.firstWrong&&pro.firstWrong.length){
+    var fx=0;pro.firstWrong.forEach(function(n){var a=ans[n];if(a&&a.ok)fx++;});R.fixed={fixed:fx,of:pro.firstWrong.length};
+  }
+  R.tier=TIERS.filter(function(t){return R.acc>=t.min;})[0];
+  R.advice=buildAdvice(R);
+  return R;
+}
+function pctOf(o){return o.total?Math.round(o.ok/o.total*100):0;}
+function topConcepts(R,n){
+  return Object.keys(R.concepts).map(function(k){return {k:k,miss:R.concepts[k].miss,seen:R.concepts[k].seen};})
+    .filter(function(x){return x.miss>0;}).sort(function(a,b){return b.miss-a.miss||b.seen-a.seen;}).slice(0,n||6);
+}
+function buildAdvice(R){
+  var A=[];
+  if(R.wrong===0&&R.skipped===0){A.push({c:'good',i:'🏆',t:'ولا غلطة في الشابتر ده! جرّب <b>Exam Mode</b> أو الشابتر اللي بعده عشان تختبر نفسك بجد.'});}
+  // weakest types
+  var ts=Object.keys(R.byT).map(function(k){return {k:k,o:R.byT[k],p:pctOf(R.byT[k])};})
+    .filter(function(x){return x.o.total>=2&&x.p<80;}).sort(function(a,b){return a.p-b.p;}).slice(0,2);
+  ts.forEach(function(x){A.push({c:x.p<50?'bad':'warn',i:'🎯',t:'ركّز على أسئلة <b>'+esc(x.k)+'</b> — دقتك فيها '+x.p+'% ('+x.o.ok+'/'+x.o.total+'). '+(TYPE_TIP[x.k]||'راجع الجزء ده من الأول.')});});
+  // difficulty
+  var e=R.byD.easy,h=R.byD.hard;
+  if(e&&e.total>=2&&pctOf(e)<80)A.push({c:'bad',i:'⚠️',t:'غلطت في <b>'+e.wrong+'</b> سؤال سهل — غالبًا استعجال أو أساس ناقص. راجع الأساسيات الأول قبل الصعب.'});
+  else if(h&&h.total>=2&&pctOf(h)<60&&(!e||pctOf(e)>=80))A.push({c:'warn',i:'🧗',t:'الأساسيات كويسة بس الأسئلة <b>الصعبة</b> ('+pctOf(h)+'%) بتقعك — تدرّب على الحالات الخاصة (edge cases) والأسئلة المركّبة.'});
+  // concepts
+  var tc=topConcepts(R,5);
+  if(tc.length)A.push({c:'warn',i:'🧩',t:'المفاهيم اللي محتاجة مراجعة: '+tc.map(function(x){return '<b>'+esc(x.k)+'</b>'+(x.miss>1?' ×'+x.miss:'');}).join('، ')+'.'});
+  // speed
+  if(R.timed>=3){
+    var avg=Math.round(R.avgMs/1000);
+    if(R.fastWrong>=2)A.push({c:'bad',i:'⚡',t:'جاوبت <b>'+R.fastWrong+'</b> سؤال في أقل من 3 ثواني وغلطت فيهم — دي إجابات متسرعة. اقرأ كل الاختيارات قبل ما تختار.'});
+    else if(avg<5&&R.acc<75)A.push({c:'warn',i:'⚡',t:'بتجاوب بسرعة (<b>'+avg+'s</b> للسؤال) ودقتك '+R.acc+'% — بطّئ شوية، السرعة مش هتفيدك مع الغلط.'});
+    else if(avg>45)A.push({c:'warn',i:'⏳',t:'متوسطك <b>'+avg+'s</b> للسؤال — في الامتحان الوقت هيضيق، تدرّب على السرعة.'});
+    else if(R.acc>=85&&avg<=30)A.push({c:'good',i:'⏱️',t:'سرعة ودقة مع بعض: <b>'+avg+'s</b> للسؤال بدقة '+R.acc+'% — توازن ممتاز.'});
+  }
+  if(R.bestStreak>=5)A.push({c:'good',i:'🔥',t:'أطول سلسلة إجابات صح ورا بعض: <b>'+R.bestStreak+'</b>.'});
+  if(R.fixed&&R.fixed.of)A.push({c:R.fixed.fixed===R.fixed.of?'good':'warn',i:'🛠️',t:'صلّحت <b>'+R.fixed.fixed+'</b> من <b>'+R.fixed.of+'</b> سؤال كنت غالط فيهم في المحاولة الأولى.'});
+  if(R.prev){var dl=R.acc-R.prev.acc;if(dl>0)A.push({c:'good',i:'📈',t:'تحسّن <b>+'+dl+'%</b> عن آخر محاولة ('+R.prev.acc+'%). كمّل!'});else if(dl<0)A.push({c:'warn',i:'📉',t:'نزلت <b>'+dl+'%</b> عن آخر محاولة ('+R.prev.acc+'%). راجع الغلطات وجرّب تاني.'});}
+  if(R.wrong>0)A.push({c:'',i:'🧭',t:'الخطوة الجاية: دوس <b>«راجع غلطاتك»</b> وجاوبهم تاني، وبعدين ارجع للشابتر كله بعد يوم — التكرار المتباعد بيثبّت المعلومة.'});
+  return A;
+}
+
+/* ─────────── history ─────────── */
+function recordHistory(chId,R){
+  loadStore();var h=store.history[chId]=store.history[chId]||[];
+  h.push({ts:Date.now(),acc:R.acc,correct:R.correct,total:R.total,pts:R.points.earned,max:R.points.max,mode:R.mode,round:R.round,ms:R.totalMs});
+  if(h.length>30)h.shift();saveStore();
+}
+
+/* ─────────── feedback: sound / haptic / toast ─────────── */
+function tone(f,dur,type,when,vol){
+  try{
+    audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+    var t0=audioCtx.currentTime+(when||0),o=audioCtx.createOscillator(),g=audioCtx.createGain();
+    o.type=type||'sine';o.frequency.value=f;g.gain.setValueAtTime(0.0001,t0);
+    g.gain.exponentialRampToValueAtTime(vol||0.12,t0+0.015);g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+    o.connect(g);g.connect(audioCtx.destination);o.start(t0);o.stop(t0+dur+0.03);
+  }catch(e){}
+}
+var sfx={
+  ok:function(){tone(660,.09,'sine',0);tone(880,.14,'sine',.09);},
+  bad:function(){tone(349,.1,'sine',0,.1);tone(262,.2,'sine',.1,.1);},   /* soft two-note descending 'oops' */
+  win:function(perfect){var n=perfect?[523,659,784,1047,1319]:[523,659,784,1047];n.forEach(function(f,i){tone(f,.22,'triangle',i*.11,.14);});},
+  meh:function(){tone(392,.18,'sine',0);tone(330,.26,'sine',.16);}
+};
+function buzz(p){try{if(S().haptic&&navigator.vibrate)navigator.vibrate(p);}catch(e){}}
+function toast(msg,bad){
+  var w=$('qp-toasts');if(!w)return;var t=document.createElement('div');t.className='qp-toast'+(bad?' bad':'');t.textContent=msg;w.appendChild(t);
+  setTimeout(function(){if(t.parentNode)t.parentNode.removeChild(t);},2700);
+}
+
+/* ─────────── confetti ─────────── */
+function confetti(power){
+  if(!S().confetti)return;
+  if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  var cv=$('qp-confetti');if(!cv)return;
+  var dpr=Math.min(window.devicePixelRatio||1,2),W=window.innerWidth,H=window.innerHeight;
+  cv.width=W*dpr;cv.height=H*dpr;cv.style.display='block';
+  var ctx=cv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);
+  var cols=[cssv('--accent'),cssv('--accent-hi'),cssv('--accent3'),cssv('--accent2-text'),cssv('--text')].filter(Boolean);
+  var P=[],n=Math.round((power||1)*(W<640?90:140));
+  function add(x,y,vx,vy){P.push({x:x,y:y,vx:vx,vy:vy,g:.16+Math.random()*.08,r:Math.random()*6.28,vr:(Math.random()-.5)*.35,
+    w:6+Math.random()*7,h:3+Math.random()*5,c:cols[Math.floor(Math.random()*cols.length)],life:0,max:150+Math.random()*90,circ:Math.random()<.25});}
+  for(var i=0;i<n;i++){
+    var a=-Math.PI/2+(Math.random()-.5)*1.05,sp=11+Math.random()*10;
+    add(i%2?0:W,H*.95,(i%2?1:-1)*Math.abs(Math.cos(a))*sp*.9,Math.sin(a)*sp);
+  }
+  for(var j=0;j<n*.6;j++)add(Math.random()*W,-20-Math.random()*H*.4,(Math.random()-.5)*2.5,2+Math.random()*3);
+  cancelAnimationFrame(cfRaf);
+  (function loop(){
+    ctx.clearRect(0,0,W,H);var alive=0;
+    P.forEach(function(p){
+      p.life++;p.vy+=p.g;p.vx*=.992;p.x+=p.vx;p.y+=p.vy;p.r+=p.vr;
+      if(p.life>p.max||p.y>H+30)return;alive++;
+      ctx.save();ctx.globalAlpha=clamp(1-(p.life-p.max*.7)/(p.max*.3),0,1);ctx.translate(p.x,p.y);ctx.rotate(p.r);ctx.fillStyle=p.c;
+      if(p.circ){ctx.beginPath();ctx.arc(0,0,p.w/2.4,0,6.28);ctx.fill();}else ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+      ctx.restore();
+    });
+    if(alive)cfRaf=requestAnimationFrame(loop);else{ctx.clearRect(0,0,W,H);cv.style.display='none';}
+  })();
+}
+function stopConfetti(){cancelAnimationFrame(cfRaf);var cv=$('qp-confetti');if(cv){cv.style.display='none';}}
+
+/* ─────────── report rendering ─────────── */
+function barRow(nm,o){
+  var p=pctOf(o),cl=p>=80?'':(p>=55?'mid':'low');
+  return '<div class="qp-bar"><span class="nm">'+esc(nm)+'</span><span class="tr"><span class="fl '+cl+'" data-w="'+p+'" style="display:block"></span></span><span class="nv">'+o.ok+'/'+o.total+' · '+p+'%</span></div>';
+}
+function modeLabel(m,pen){return m==='weighted'?'بوزن الصعوبة (سهل 1 · متوسط 2 · صعب 3)':(m==='negative'?'بخصم '+pen+' على كل غلطة':'عادي (1 لكل إجابة صح)');}
+function reportHTML(R,o){
+  o=o||{};
+  var ringCol=R.acc>=75?'var(--accent)':(R.acc>=55?'var(--accent3)':'var(--wrong)');
+  var chips=[];
+  if(o.demo)chips.push('<span class="qp-chip warm">🧪 معاينة تجريبية</span>');
+  if(R.round>1)chips.push('<span class="qp-chip red">🔁 الجولة '+R.round+'</span>');
+  if(!o.demo&&R.acc>R.bestPrev&&R.bestPrev>=0)chips.push('<span class="qp-chip ok">🏆 رقم قياسي جديد</span>');
+  else if(!o.demo&&R.bestPrev<0&&!R.prev)chips.push('<span class="qp-chip">⭐ أول محاولة</span>');
+  if(R.prev){var d=R.acc-R.prev.acc;chips.push('<span class="qp-chip '+(d>=0?'ok':'bad')+'">'+(d>=0?'📈 +':'📉 ')+d+'% عن آخر مرة</span>');}
+  if(R.bestStreak>=3)chips.push('<span class="qp-chip warm">🔥 Streak '+R.bestStreak+'</span>');
+  if(R.timed)chips.push('<span class="qp-chip">⏱ '+fmtTime(R.totalMs)+'</span>');
+  var tiles='<div class="qp-tiles">'
+    +'<div class="qp-tile g"><div class="v">'+R.correct+'</div><div class="l">✓ صح</div></div>'
+    +'<div class="qp-tile r"><div class="v">'+R.wrong+'</div><div class="l">✗ غلط'+(R.skipped&&R.wrong?' (منهم '+R.skipped+' متسابين)':'')+'</div></div>'
+    +'<div class="qp-tile y"><div class="v">'+R.points.earned+'<small style="font-size:.7rem;color:var(--muted)"> /'+R.points.max+'</small></div><div class="l">⭐ النقاط</div></div>'
+    +'<div class="qp-tile"><div class="v">'+(R.timed?Math.round(R.avgMs/1000)+'s':'—')+'</div><div class="l">⏱ متوسط/سؤال</div></div></div>'
+    +'<p class="qp-note" dir="auto">نظام التصحيح: '+modeLabel(R.mode,R.pen)+(R.mode==='negative'&&R.points.raw<0?' — الصافي '+R.points.raw:'')+'</p>';
+  var dOrder=['easy','medium','hard'],dNames={easy:'سهل · Easy',medium:'متوسط · Medium',hard:'صعب · Hard'};
+  var bars='<div class="qp-bars">'+dOrder.filter(function(k){return R.byD[k];}).map(function(k){return barRow(dNames[k],R.byD[k]);}).join('')+'</div>';
+  var tbars='<div class="qp-bars">'+Object.keys(R.byT).sort(function(a,b){return pctOf(R.byT[a])-pctOf(R.byT[b]);}).map(function(k){return barRow(k,R.byT[k]);}).join('')+'</div>';
+  var adv='<div class="qp-advice">'+R.advice.map(function(a){return '<div class="qp-adv '+(a.c||'')+'" dir="auto"><span class="ic">'+a.i+'</span><span>'+a.t+'</span></div>';}).join('')+'</div>';
+  var tc=topConcepts(R,8);
+  var cch=tc.length?'<div class="qp-concepts">'+tc.map(function(x){return '<span class="qp-chip red">'+esc(x.k)+' · '+x.miss+' غلطة</span>';}).join('')+'</div>':'';
+  var mis='';
+  if(R.wrongList.length){
+    mis='<div class="qp-sec">🔎 غلطاتك ('+R.wrongList.length+')</div>'+R.wrongList.map(function(w,i){
+      var code=w.q.c?'<pre class="qcode">'+esc(w.q.c)+'</pre>':'';
+      return '<details class="qp-mis"><summary><span class="qn">Q'+w.n+'</span><span class="qd '+esc(w.d)+'">'+esc(w.d)+'</span><span class="t">'+esc(strip(w.q.q).slice(0,90))+'</span></summary><div class="mb">'
+        +'<div class="qq">'+w.q.q+'</div>'+code
+        +'<div class="qp-ans">'+(w.skipped?'<div class="you"><b>—</b> سبت السؤال من غير إجابة</div>':'<div class="you"><b>إجابتك '+esc(w.userL)+'</b>'+esc(w.userT)+'</div>')
+        +'<div class="cor"><b>الصح '+esc(w.corrL)+'</b>'+esc(w.corrT)+'</div></div>'
+        +'<div class="qp-why" dir="auto">💡 '+(w.q.h||'')+'</div></div></details>';
+    }).join('');
+  }
+  var order=chOrder(),idx=order.indexOf(R.chId),next=idx>-1&&idx<order.length-1?order[idx+1]:null;
+  var acts='<div class="qp-actions">'
+    +(R.wrong>0&&!o.demo?'<button class="btn btn-p" onclick="QuizPro.retryMistakes(\''+R.chId+'\')">🎯 راجع غلطاتك ('+R.wrong+')</button>':'')
+    +(next&&!o.demo?'<button class="btn btn-t" onclick="QuizPro.goNext(\''+next+'\')">➡️ '+esc(chName(next).length>24?chName(next).slice(0,24)+'…':chName(next))+'</button>':'')
+    +(!o.demo?'<button class="btn btn-retry" onclick="examRetry(\''+R.chId+'\');QuizPro.closeReport()">🔁 أعد الشابتر</button>':'')
+    +'<button class="btn btn-g" onclick="QuizPro.copyReport()">📋 انسخ التقرير</button>'
+    +'<button class="btn btn-g" onclick="QuizPro.closeReport()">إغلاق</button></div>';
+  var ringTxt='<div class="qp-ringtxt"><div class="qp-pct" id="qp-pct">0<small>%</small></div><div class="qp-frac">'+R.correct+' / '+R.total+'</div></div>';
+  return '<div class="qp-hero"><button class="qp-x" onclick="QuizPro.closeReport()" aria-label="close">✕</button>'
+    +'<div class="qp-medal">'+R.tier.icon+'</div><div class="qp-headline">'+R.tier.head+'</div>'
+    +'<div class="qp-sub"><b>'+esc(R.name)+'</b><div dir="auto">'+R.tier.sub+'</div></div>'
+    +'<div class="qp-ringwrap"><svg class="qp-ring" viewBox="0 0 160 160"><circle class="trk" cx="80" cy="80" r="70"/>'
+    +'<circle class="bar" id="qp-ringbar" cx="80" cy="80" r="70" style="stroke:'+ringCol+'"/></svg>'+ringTxt+'</div>'
+    +'<div class="qp-chips">'+chips.join('')+'</div></div>'
+    +'<div class="qp-body">'+tiles
+    +'<div class="qp-sec">📊 أداءك حسب الصعوبة</div>'+bars
+    +'<div class="qp-sec">🧪 أداءك حسب نوع السؤال</div>'+tbars
+    +'<div class="qp-sec">🎯 ركّز على إيه؟</div>'+adv+cch+mis+acts
+    +(o.demo?'<div class="qp-demo" dir="auto">دي معاينة بأرقام عشوائية — مش بتتحفظ في تقدمك.</div>':'')+'</div>';
+}
+function animateReport(R){
+  var bar=$('qp-ringbar'),pc=$('qp-pct'),C=439.8;
+  requestAnimationFrame(function(){requestAnimationFrame(function(){
+    if(bar)bar.style.strokeDashoffset=(C*(1-R.acc/100)).toFixed(1);
+    document.querySelectorAll('#qp-report .fl').forEach(function(f){f.style.width=f.getAttribute('data-w')+'%';});
+  });});
+  var t0=performance.now(),dur=1400;
+  (function step(t){var k=clamp((t-t0)/dur,0,1),e=1-Math.pow(1-k,3);
+    if(pc)pc.innerHTML=Math.round(R.acc*e)+'<small>%</small>';if(k<1)requestAnimationFrame(step);})(t0);
+}
+function openReport(chId,opts){
+  opts=opts||{};loadStore();
+  var R=opts.rep||computeReport(chId,{finalize:!!opts.finalize,ans:opts.ans,pro:opts.pro});
+  curChId=chId;curRep=R;
+  var ov=$('qp-report');if(!ov)return;
+  ov.innerHTML='<div class="qp-card" id="qp-card">'+reportHTML(R,opts)+'</div>';
+  ov.classList.add('open');
+  var card=$('qp-card');if(card)card.scrollTop=0;
+  animateReport(R);
+  if(opts.celebrate){
+    var perfect=R.acc===100;
+    setTimeout(function(){
+      if(R.acc>=60){confetti(perfect?2.2:(R.acc>=90?1.6:1));if(S().sound)sfx.win(perfect);buzz([30,40,30,40,80]);}
+      else{if(S().sound)sfx.meh();buzz(60);}
+    },350);
+  }
+}
+function closeReport(){var ov=$('qp-report');if(ov)ov.classList.remove('open');stopConfetti();}
+function reportText(R){
+  var L=[];L.push('📊 تقرير أداء — '+R.name);
+  L.push('النتيجة: '+R.correct+'/'+R.total+' ('+R.acc+'%) — '+R.tier.head);
+  L.push('النقاط ['+modeLabel(R.mode,R.pen)+']: '+R.points.earned+'/'+R.points.max);
+  Object.keys(R.byD).forEach(function(k){L.push('• '+k+': '+R.byD[k].ok+'/'+R.byD[k].total+' ('+pctOf(R.byD[k])+'%)');});
+  Object.keys(R.byT).forEach(function(k){L.push('• '+k+': '+R.byT[k].ok+'/'+R.byT[k].total+' ('+pctOf(R.byT[k])+'%)');});
+  if(R.timed)L.push('⏱ المتوسط '+Math.round(R.avgMs/1000)+'ث/سؤال — الإجمالي '+fmtTime(R.totalMs));
+  L.push('');L.push('ركّز على:');R.advice.forEach(function(a){L.push('- '+strip(a.t));});
+  if(R.wrongList.length){L.push('');L.push('الأسئلة اللي اتغلط فيها: '+R.wrongList.map(function(w){return 'Q'+w.n;}).join(', '));}
+  return L.join('\n');
+}
+function copyText(txt){
+  function done(){toast('📋 اتنسخ التقرير');}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(done,fallback);}else fallback();
+  function fallback(){var ta=document.createElement('textarea');ta.value=txt;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');done();}catch(e){}document.body.removeChild(ta);}
+}
+
+/* ─────────── actions ─────────── */
+function retryMistakes(chId){
+  var en=eng();if(!en)return;var s=en.gs(),ch=s[chId];if(!ch||!ch.answered)return;
+  var wrongs=Object.keys(ch.answered).filter(function(k){return !ch.answered[k].ok;});
+  if(!wrongs.length){toast('✅ مفيش غلطات تتراجع');return;}
+  ch.pro=ch.pro||{log:[],round:1};
+  if(!ch.pro.firstWrong)ch.pro.firstWrong=wrongs.map(Number);
+  ch.pro.round=(ch.pro.round||1)+1;ch.pro.doneRound=0;
+  var set={};wrongs.forEach(function(k){set[k]=1;delete ch.answered[k];});
+  ch.pro.log=(ch.pro.log||[]).filter(function(e){return !set[e.n];});
+  en.ss(s);closeReport();
+  var panel=$(chId);
+  if(panel){var sc=panel.querySelector('.exam-sum-card');if(sc)sc.remove();var pw=panel.querySelector('.exam-prog-wrap');if(pw)pw.remove();}
+  var cont=$(chId+'-q');if(cont){cont.innerHTML='';}
+  if(typeof rendered!=='undefined')rendered[chId]=false;
+  window.show(chId);
+  if(cont){
+    cont.classList.add('qp-drill');
+    cont.querySelectorAll('.qc[data-answered]').forEach(function(c){c.classList.add('qp-done');});
+    var old=panel&&panel.querySelector('.qp-drill-banner');if(old)old.remove();
+    var b=document.createElement('div');b.className='qp-drill-banner';b.setAttribute('dir','auto');
+    b.innerHTML='🎯 وضع مراجعة الغلطات — '+wrongs.length+' سؤال بس. جاوبهم صح وهتشوف تحسّنك.<button class="btn btn-g" onclick="QuizPro.showAllQs(\''+chId+'\')">اعرض كل الأسئلة</button>';
+    cont.parentNode.insertBefore(b,cont);
+  }
+  lastTs[chId]=Date.now();
+  setTimeout(function(){var c=document.querySelector('#'+chId+'-q .qc:not([data-answered])');if(c)c.scrollIntoView({behavior:'smooth',block:'center'});},350);
+  toast('🎯 '+wrongs.length+' سؤال رجعوا — وريني بقى!');
+}
+function showAllQs(chId){var c=$(chId+'-q');if(c)c.classList.remove('qp-drill');var p=$(chId);var b=p&&p.querySelector('.qp-drill-banner');if(b)b.remove();}
+function clearDrill(chId){var c=$(chId+'-q');if(c){c.classList.remove('qp-drill');c.querySelectorAll('.qp-done').forEach(function(x){x.classList.remove('qp-done');});}var p=$(chId);var b=p&&p.querySelector('.qp-drill-banner');if(b)b.remove();}
+function goNext(id){closeReport();window.show(id);}
+
+/* ─────────── hooks called by the engine ─────────── */
+function onAnswer(chId,qn,ok){
+  var en=eng();if(!en)return;loadStore();
+  var s=en.gs(),ch=s[chId];if(!ch)return;
+  ch.pro=ch.pro||{log:[],round:1};
+  var now=Date.now(),last=lastTs[chId]||now,ms=clamp(now-last,300,120000);lastTs[chId]=now;
+  ch.pro.log.push({n:qn,ok:!!ok,ms:ms});en.ss(s);
+  if(ok){sfx.ok&&S().sound&&sfx.ok();buzz(12);streak++;
+    if(S().streakToast&&[3,5,7,10,15,20,30].indexOf(streak)>-1)toast('🔥 '+streak+' صح ورا بعض!');}
+  else{if(S().sound)sfx.bad();buzz([35,40,35]);
+    if(S().streakToast&&streak>=3)toast('💔 الـ streak وقف عند '+streak+' — كمّل',true);streak=0;}
+  var st=en.chStats(chId);
+  if(st.total&&st.answered>=st.total)setTimeout(function(){onComplete(chId,{});},700);
+}
+function onComplete(chId,o){
+  var en=eng();if(!en)return;var s=en.gs(),ch=s[chId];if(!ch)return;
+  ch.pro=ch.pro||{log:[],round:1};
+  if(ch.pro.doneRound===ch.pro.round)return;           // already celebrated this round
+  ch.pro.doneRound=ch.pro.round;en.ss(s);
+  var R=computeReport(chId,{finalize:!!o.exam});
+  recordHistory(chId,R);
+  clearDrill(chId);
+  if(S().autoReport)openReport(chId,{rep:R,celebrate:true});
+  else toast('✅ خلصت الشابتر — افتح التقرير من الكارت اللي تحت');
+}
+function onExamSubmitted(chIds){
+  if(!chIds||!chIds.length)return;
+  var active=document.querySelector('.chapter-panel.active'),aid=active&&active.id;
+  var pick=(aid&&chIds.indexOf(aid)>-1)?aid:chIds[0];
+  chIds.forEach(function(id){
+    if(id===pick)return;var en=eng(),s=en.gs(),ch=s[id];if(!ch)return;
+    ch.pro=ch.pro||{log:[],round:1};if(ch.pro.doneRound!==ch.pro.round){ch.pro.doneRound=ch.pro.round;en.ss(s);recordHistory(id,computeReport(id,{finalize:true}));}
+  });
+  setTimeout(function(){onComplete(pick,{exam:true});},500);
+}
+function onRetry(chId){clearDrill(chId);}
+function onReset(){loadStore();store.history={};saveStore();lastTs={};streak=0;closeReport();
+  Object.keys(getDB()||{}).forEach(clearDrill);}
+
+/* ─────────── overall performance panel ─────────── */
+function renderOverall(){
+  var body=$('perf-report-body');if(!body)return;loadStore();
+  var ids=chOrder().filter(function(i){var d=getDB()[i];return !(d&&d.fm);}),rows=[],T={total:0,answered:0,correct:0,wrong:0,ms:0,timed:0,earned:0,max:0};
+  var byT={},conc={};
+  ids.forEach(function(id){
+    var R=computeReport(id,{});if(!R.total)return;
+    T.total+=R.total;T.answered+=R.correct+R.wrong;T.correct+=R.correct;T.wrong+=R.wrong;T.ms+=R.totalMs;T.timed+=R.timed;T.earned+=R.points.earned;T.max+=R.points.max;
+    Object.keys(R.byT).forEach(function(k){var o=byT[k]=byT[k]||{total:0,ok:0,wrong:0};var a=R.byT[k];o.ok+=a.ok;o.wrong+=a.wrong;o.total+=a.ok+a.wrong;});
+    Object.keys(R.concepts).forEach(function(k){var c=conc[k]=conc[k]||{seen:0,miss:0};c.miss+=R.concepts[k].miss;c.seen+=R.concepts[k].seen;});
+    var h=store.history[id]||[],best=h.reduce(function(m,x){return Math.max(m,x.acc);},-1);
+    rows.push({id:id,R:R,best:best,done:R.answered>=R.total&&R.total>0});
+  });
+  if(!T.answered){
+    body.innerHTML='<div class="ch-hdr"><div class="ch-ico">📊</div><div class="ch-ttl"><h2>تقرير أدائي</h2><p>صورة كاملة عن مستواك في كل الشابترز</p></div></div>'
+      +'<div class="qp-empty" dir="auto">لسه ما جاوبتش على أي سؤال 🙂<br>ابدأ بأي شابتر وهتلاقي هنا نسبة كل شابتر، نقط ضعفك، وخطة مراجعة مرتبة.</div>';return;
+  }
+  var acc=Math.round(T.correct/T.answered*100),tier=TIERS.filter(function(t){return acc>=t.min;})[0];
+  var weakCh=rows.filter(function(r){return r.R.correct+r.R.wrong>=3;}).map(function(r){return {r:r,p:Math.round(r.R.correct/(r.R.correct+r.R.wrong)*100)};})
+    .filter(function(x){return x.p<75;}).sort(function(a,b){return a.p-b.p;}).slice(0,4);
+  var weakT=Object.keys(byT).map(function(k){return {k:k,p:pctOf(byT[k]),o:byT[k]};}).filter(function(x){return x.o.total>=3&&x.p<75;}).sort(function(a,b){return a.p-b.p;}).slice(0,3);
+  var weakC=Object.keys(conc).map(function(k){return {k:k,m:conc[k].miss};}).filter(function(x){return x.m>0;}).sort(function(a,b){return b.m-a.m;}).slice(0,8);
+  var plan=[];
+  weakCh.forEach(function(x,i){plan.push('<div class="qp-adv bad" dir="auto"><span class="ic">'+(i+1)+'️⃣</span><span>ابدأ بـ <b>'+esc(x.r.R.name)+'</b> — دقتك '+x.p+'% ('+x.r.R.wrong+' غلطة). افتحه واضغط «راجع غلطاتك».</span></div>');});
+  weakT.forEach(function(x){plan.push('<div class="qp-adv warn" dir="auto"><span class="ic">🎯</span><span>في كل الشابترز أسئلة <b>'+esc(x.k)+'</b> هي الأضعف ('+x.p+'%). '+(TYPE_TIP[x.k]||'')+'</span></div>');});
+  if(!plan.length)plan.push('<div class="qp-adv good" dir="auto"><span class="ic">🌟</span><span>مفيش نقطة ضعف واضحة لحد دلوقتي — كمّل باقي الشابترز وجرّب Exam Mode.</span></div>');
+  var rowsHTML=rows.map(function(r){
+    var a=r.R.correct+r.R.wrong,p=a?Math.round(r.R.correct/a*100):0;
+    return '<div class="qp-chrow"><div class="nm">'+esc(r.R.name)+'<small>'+a+'/'+r.R.total+' اتجاوب · '+r.R.correct+' صح'+(r.best>=0?' · أفضل '+r.best+'%':'')+(r.done?' · ✅ خلص':'')+'</small></div>'
+      +'<div class="dbl"><i class="a" style="width:'+Math.round(a/r.R.total*100)+'%"></i><i class="c" style="width:'+Math.round(r.R.correct/r.R.total*100)+'%"></i></div>'
+      +'<button class="go" onclick="show(\''+r.id+'\')">'+(a?p+'% ›':'ابدأ ›')+'</button></div>';
+  }).join('');
+  body.innerHTML='<div class="ch-hdr"><div class="ch-ico">📊</div><div class="ch-ttl"><h2>تقرير أدائي</h2><p>صورة كاملة عن مستواك في كل الشابترز</p></div></div>'
+    +'<div class="qp-ov-hero"><div class="qp-ringwrap"><svg class="qp-ring" viewBox="0 0 160 160"><circle class="trk" cx="80" cy="80" r="70"/><circle class="bar" id="qp-ovbar" cx="80" cy="80" r="70" style="stroke:var(--accent)"/></svg>'
+    +'<div class="qp-ringtxt"><div class="qp-pct">'+acc+'<small>%</small></div><div class="qp-frac">'+T.correct+' / '+T.answered+'</div></div></div>'
+    +'<div class="txt" dir="auto"><h3>'+tier.icon+' '+tier.head+'</h3><p>جاوبت على <b>'+T.answered+'</b> من <b>'+T.total+'</b> سؤال ('+Math.round(T.answered/T.total*100)+'% من المحتوى). '
+    +'النقاط: <b>'+r1(T.earned)+'/'+T.max+'</b>'+(T.timed?' · متوسط الوقت <b>'+Math.round(T.ms/T.timed/1000)+'s</b>':'')+' · غلطات في الـ Review Bank: <b>'+(eng()?(eng().gs().reviewBank||[]).length:0)+'</b>.<br>'
+    +'<span style="font-size:.7rem">نظام التصحيح: '+modeLabel(settings.marking,settings.negPenalty)+'</span></p></div></div>'
+    +'<div class="qp-sec">🗺️ خطة المراجعة المقترحة</div><div class="qp-advice">'+plan.join('')+'</div>'
+    +(weakC.length?'<div class="qp-concepts">'+weakC.map(function(x){return '<span class="qp-chip red">'+esc(x.k)+' · '+x.m+'</span>';}).join('')+'</div>':'')
+    +'<div class="qp-sec">📚 الشابترز</div>'+rowsHTML
+    +'<div class="qp-actions"><button class="btn btn-g" onclick="QuizPro.copyOverall()">📋 انسخ التقرير</button><button class="btn btn-t" onclick="show(\'reviewBank\')">⚠️ Review Bank</button></div>';
+  requestAnimationFrame(function(){requestAnimationFrame(function(){var b=$('qp-ovbar');if(b)b.style.strokeDashoffset=(439.8*(1-acc/100)).toFixed(1);});});
+  body._txt=['📊 تقرير أدائي الكامل','الدقة: '+acc+'% ('+T.correct+'/'+T.answered+') من '+T.total+' سؤال']
+    .concat(rows.map(function(r){var a=r.R.correct+r.R.wrong;return '• '+r.R.name+': '+r.R.correct+'/'+a+(a?' ('+Math.round(r.R.correct/a*100)+'%)':'');})).concat(['','خطة المراجعة:']).concat(plan.map(strip)).join('\n');
+}
+function copyOverall(){var b=$('perf-report-body');if(b&&b._txt)copyText(b._txt);}
+
+/* ─────────── options panel ─────────── */
+var TOGGLES=[
+  ['confetti','🎉','كونفيتي الاحتفال','احتفال بالألوان لما تخلص شابتر بنتيجة كويسة'],
+  ['sound','🔊','مؤثرات صوتية','نغمة للصح والغلط وفانفير في الآخر'],
+  ['haptic','📳','اهتزاز (موبايل)','اهتزاز خفيف مع كل إجابة'],
+  ['autoReport','📊','افتح التقرير تلقائيًا','بعد آخر سؤال في الشابتر'],
+  ['streakToast','🔥','إشعارات الـ Streak','لما تجاوب كذا سؤال صح ورا بعض']
+];
+var MODES=[['standard','✓ عادي'],['weighted','⚖️ بوزن الصعوبة'],['negative','➖ خصم على الغلط']];
+var MDESC={standard:'كل إجابة صح = نقطة واحدة. أبسط نظام.',
+  weighted:'السهل = 1، المتوسط = 2، الصعب = 3. الصح في الصعب بيفرق أكتر.',
+  negative:'+1 للصح و −خصم للغلط (زي الامتحانات اللي فيها سالب). التخمين العشوائي بقى مكلف.'};
+function renderOptions(){
+  S();
+  var c=$('qp-opts');if(!c)return;
+  c.innerHTML='<div class="qp-opt-card"><h3>⚙️ الأوبشنز والتصحيح</h3><p>الإعدادات بتتحفظ تلقائيًا على جهازك.</p>'
+    +TOGGLES.map(function(t){return '<div class="qp-row"><span style="font-size:1.2rem">'+t[1]+'</span><div class="tx" dir="auto"><b>'+t[2]+'</b><span>'+t[3]+'</span></div>'
+      +'<div class="toggle-track'+(settings[t[0]]?' on':'')+'" onclick="QuizPro.setOpt(\''+t[0]+'\',!QuizPro.getOpt(\''+t[0]+'\'))" role="switch" aria-checked="'+(!!settings[t[0]])+'"></div></div>';}).join('')
+    +'<div class="qp-sec" style="margin-top:16px">🎯 نظام التصحيح (Marking)</div>'
+    +'<div class="qp-seg">'+MODES.map(function(m){return '<button class="'+(settings.marking===m[0]?'on':'')+'" onclick="QuizPro.setOpt(\'marking\',\''+m[0]+'\')">'+m[1]+'</button>';}).join('')+'</div>'
+    +'<p class="qp-mdesc" dir="auto">'+MDESC[settings.marking]+'</p>'
+    +(settings.marking==='negative'?'<div class="qp-row" style="border:0"><div class="tx"><b>قيمة الخصم لكل غلطة</b></div><select class="qp-sel" onchange="QuizPro.setOpt(\'negPenalty\',parseFloat(this.value))">'
+      +[0.25,0.33,0.5].map(function(v){return '<option value="'+v+'"'+(settings.negPenalty===v?' selected':'')+'>−'+v+'</option>';}).join('')+'</select></div>':'')
+    +'<div class="qp-actions" style="margin-top:12px"><button class="btn btn-p" onclick="QuizPro.preview()">🎬 عاين شاشة الاحتفال</button>'
+    +'<button class="btn btn-t" onclick="QuizPro.closeOptions();show(\'perfReport\')">📊 تقرير أدائي</button>'
+    +'<button class="btn btn-g" onclick="QuizPro.resetOpts()">↺ الافتراضي</button><button class="btn btn-g" onclick="QuizPro.closeOptions()">تمام</button></div></div>';
+}
+function openOptions(){renderOptions();$('qp-opts').classList.add('open');}
+function closeOptions(){var o=$('qp-opts');if(o)o.classList.remove('open');}
+function setOpt(k,v){S();settings[k]=v;saveStore();renderOptions();if(k==='sound'&&v)sfx.ok();if(k==='haptic'&&v)buzz(20);}
+function getOpt(k){return S()[k];}
+function resetOpts(){S();Object.keys(DEFAULTS).forEach(function(k){settings[k]=DEFAULTS[k];});saveStore();renderOptions();}
+function preview(){
+  closeOptions();S();
+  var cur=document.querySelector('.chapter-panel.active'),id=(cur&&getDB()&&getDB()[cur.id])?cur.id:chOrder()[0];if(!id)return;
+  var qs=allQs(id),ans={},log=[],p=0.72;
+  qs.forEach(function(q){var ok=Math.random()<(q.d==='hard'?p-.25:(q.d==='easy'?p+.18:p));
+    var wrongL=['A','B','C','D'].filter(function(x){return x!==q.a;})[Math.floor(Math.random()*3)];
+    ans[q.n]={user:ok?q.a:wrongL,correct:q.a,ok:ok};log.push({n:q.n,ok:ok,ms:2000+Math.round(Math.random()*30000)});});
+  openReport(id,{ans:ans,pro:{log:log,round:1},celebrate:true,demo:true});
+}
+function copyReport(){if(curRep)copyText(reportText(curRep));}
+
+/* ─────────── bootstrap ─────────── */
+function build(){
+  if($('qp-report'))return;
+  var cv=document.createElement('canvas');cv.id='qp-confetti';document.body.appendChild(cv);
+  var tw=document.createElement('div');tw.id='qp-toasts';document.body.appendChild(tw);
+  var r=document.createElement('div');r.id='qp-report';r.className='qp-overlay';r.setAttribute('role','dialog');r.setAttribute('aria-modal','true');
+  r.addEventListener('click',function(e){if(e.target===r)closeReport();});document.body.appendChild(r);
+  var o=document.createElement('div');o.id='qp-opts';o.className='qp-overlay';o.setAttribute('role','dialog');
+  o.addEventListener('click',function(e){if(e.target===o)closeOptions();});document.body.appendChild(o);
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeReport();closeOptions();}});
+  document.addEventListener('visibilitychange',function(){if(!document.hidden){var a=document.querySelector('.chapter-panel.active');if(a)lastTs[a.id]=Date.now();}});
+  window.addEventListener('resize',function(){var cv2=$('qp-confetti');if(cv2&&cv2.style.display==='block'){cv2.width=innerWidth;cv2.height=innerHeight;}});
+  var prevShow=window.show;
+  window.show=function(id){prevShow(id);
+    if(id==='perfReport')renderOverall();
+    else if(getDB()&&getDB()[id])lastTs[id]=Date.now();};
+  loadStore();
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',build);else build();
+
+window.QuizPro={onAnswer:onAnswer,onComplete:onComplete,onExamSubmitted:onExamSubmitted,onRetry:onRetry,onReset:onReset,
+  openReport:function(id){openReport(id,{celebrate:false,finalize:false});},closeReport:closeReport,copyReport:copyReport,
+  retryMistakes:retryMistakes,showAllQs:showAllQs,goNext:goNext,openOptions:openOptions,closeOptions:closeOptions,setOpt:setOpt,getOpt:getOpt,
+  resetOpts:resetOpts,preview:preview,copyOverall:copyOverall,computeReport:computeReport,markPoints:markPoints};
+})();
+
+</script>
+
+</body>
+</html>
